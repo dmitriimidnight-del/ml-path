@@ -2,7 +2,7 @@
 
 Использование:  python tools/check_lessons.py
 Нужны: node, Python с numpy, pandas, matplotlib, scikit-learn.
-Блоки с lang ("terminal", "text") и skip: true (нужен интернет) пропускаются.
+Блоки с lang ("terminal", "text", "file") и skip: true (нужен интернет) пропускаются.
 """
 import contextlib
 import io
@@ -13,8 +13,8 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FILES = ["data.js", "lessons-p1-extra.js", "lessons-p2.js"]
-SHELL_WORDS = ("git ", "python ", "pip ", "cd ", ".venv", "source ")
+FILES = ["data.js", "lessons-p1-extra.js", "lessons-p2.js", "lessons-p3.js"]
+SHELL_WORDS = ("git ", "python ", "pip ", "cd ", ".venv", "source ", "docker ", "pytest", "fastapi ", "ruff ")
 
 node_src = "global.window = {};" + "".join(
     "require(%s);" % json.dumps(os.path.join(ROOT, f)) for f in FILES
@@ -69,7 +69,7 @@ for project in path["projects"]:
                     print("НЕ СОВПАЛО  %s / %s\n--- в уроке:\n%s\n--- на деле:\n%s" % (where, sec["h"], sec["out"], got))
         for i, task in enumerate(lesson.get("practice", []), 1):
             code = task["solution"]
-            if is_shell(code):
+            if task.get("lang") or is_shell(code):
                 skipped += 1
                 continue
             try:
