@@ -26,7 +26,6 @@
   }
 
   var state = load();
-  var tab = "brief";
 
   // ---------- утилиты ----------
 
@@ -36,6 +35,11 @@
     });
   }
 
+  // Текст урока: экранируем и превращаем `код` в <code>
+  function fmt(s) {
+    return esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+  }
+
   function project(id) {
     for (var i = 0; i < PATH.projects.length; i++) {
       if (PATH.projects[i].id === id) return PATH.projects[i];
@@ -43,47 +47,48 @@
     return null;
   }
 
-  function isDetailed(p) { return !!p.plan; }
+  function isIntro(p) { return p.kind === "intro"; }
+  function hasPlan(p) { return !!p.plan; }
+  function hasLessons(p) { return !!p.theory; }
+  function realProjects() { return PATH.projects.filter(function (p) { return !isIntro(p); }); }
+  function projectNumber(p) { return realProjects().indexOf(p) + 1; }
 
-  // Список всех отмечаемых пунктов проекта: [{key, group}]
-  function items(p) {
-    var out = [];
-    if (!isDetailed(p)) return out;
-    p.plan.forEach(function (w, wi) {
-      w.tasks.forEach(function (_, ti) { out.push({ group: "tasks", key: p.id + ".w" + wi + ".t" + ti }); });
-    });
-    p.theory.forEach(function (t) {
-      t.quiz.forEach(function (_, qi) { out.push({ group: "quiz", key: p.id + "." + t.id + ".q" + qi }); });
-    });
-    p.criteria.forEach(function (_, ci) { out.push({ group: "criteria", key: p.id + ".c" + ci }); });
-    return out;
-  }
+  function qKey(p, t, qi) { return p.id + "." + t.id + ".q" + qi; }
+  function tKey(p, wi, ti) { return p.id + ".w" + wi + ".t" + ti; }
 
-  function quizCorrect(p, key) {
-    var parts = key.split(".");
-    var t = p.theory.filter(function (x) { return x.id === parts[1]; })[0];
-    var q = t.quiz[Number(parts[2].slice(1))];
-    return state.quiz[key] === q.answer;
+  function lessonScore(p, t) {
+    var right = t.quiz.filter(function (q, qi) { return state.quiz[qKey(p, t, qi)] === q.answer; }).length;
+    return { right: right, total: t.quiz.length };
   }
 
   function progress(p) {
-    var all = items(p);
-    if (!all.length) return { done: 0, total: 0, pct: 0 };
-    var done = all.filter(function (it) {
-      if (it.group === "quiz") return quizCorrect(p, it.key);
-      return !!state[it.group][it.key];
-    }).length;
-    return { done: done, total: all.length, pct: Math.round((done / all.length) * 100) };
+    var done = 0, total = 0;
+    (p.theory || []).forEach(function (t) {
+      var s = lessonScore(p, t);
+      done += s.right; total += s.total;
+    });
+    (p.plan || []).forEach(function (w, wi) {
+      w.tasks.forEach(function (_, ti) { total++; if (state.tasks[tKey(p, wi, ti)]) done++; });
+    });
+    (p.criteria || []).forEach(function (_, ci) { total++; if (state.criteria[p.id + ".c" + ci]) done++; });
+    return { done: done, total: total, pct: total ? Math.round((done / total) * 100) : 0 };
   }
 
-  function nextTask() {
+  function nextStep() {
     for (var i = 0; i < PATH.projects.length; i++) {
       var p = PATH.projects[i];
-      if (!isDetailed(p)) continue;
+      if (isIntro(p)) {
+        if (progress(p).pct < 100) {
+          return { href: "#" + p.id, text: "Пройти вводный урок «" + p.title + "»", meta: "Старт · " + p.weeks };
+        }
+        continue;
+      }
+      if (!hasPlan(p)) continue;
       for (var wi = 0; wi < p.plan.length; wi++) {
         for (var ti = 0; ti < p.plan[wi].tasks.length; ti++) {
-          var key = p.id + ".w" + wi + ".t" + ti;
-          if (!state.tasks[key]) return { p: p, week: p.plan[wi].title, text: p.plan[wi].tasks[ti] };
+          if (!state.tasks[tKey(p, wi, ti)]) {
+            return { href: "#" + p.id + "/plan", text: p.plan[wi].tasks[ti], meta: p.title + " · " + p.plan[wi].title };
+          }
         }
       }
     }
@@ -98,37 +103,36 @@
   // ---------- главная ----------
 
   function viewHome() {
-    var detailed = PATH.projects.filter(isDetailed);
-    var done = 0, total = 0;
-    detailed.forEach(function (p) { var pr = progress(p); done += pr.done; total += pr.total; });
-    var finished = PATH.projects.filter(function (p) { return isDetailed(p) && progress(p).pct === 100; }).length;
-    var next = nextTask();
+    var real = realProjects();
+    var finished = real.filter(function (p) { return hasPlan(p) && progress(p).pct === 100; }).length;
+    var next = nextStep();
 
     var h = '';
     h += '<header class="hero">';
-    h += '<p class="eyebrow">' + finished + ' из ' + PATH.projects.length + ' проектов в портфолио</p>';
+    h += '<p class="eyebrow">' + finished + ' из ' + real.length + ' проектов в портфолио</p>';
     h += '<h1>' + esc(PATH.title) + '</h1>';
     h += '<p class="lead">' + esc(PATH.subtitle) + '</p>';
     h += '</header>';
 
     if (next) {
-      h += '<a class="next" href="#' + next.p.id + '/plan">';
+      h += '<a class="next" href="' + next.href + '">';
       h += '<span class="next-label">Следующий шаг</span>';
       h += '<span class="next-text">' + esc(next.text) + '</span>';
-      h += '<span class="next-meta">' + esc(next.p.title) + ' · ' + esc(next.week) + '</span>';
+      h += '<span class="next-meta">' + esc(next.meta) + '</span>';
       h += '</a>';
     }
 
     h += '<ol class="ladder">';
-    PATH.projects.forEach(function (p, i) {
+    PATH.projects.forEach(function (p) {
       var pr = progress(p);
+      var tracked = pr.total > 0;
       h += '<li><a class="step" href="#' + p.id + '">';
-      h += '<span class="num">' + (i + 1) + '</span>';
+      h += '<span class="num' + (isIntro(p) ? ' num-start' : '') + '">' + (isIntro(p) ? '0' : projectNumber(p)) + '</span>';
       h += '<span class="step-body">';
       h += '<span class="step-title">' + esc(p.title) + '</span>';
       h += '<span class="step-tag">' + esc(p.tagline) + '</span>';
-      h += '<span class="step-meta">' + esc(p.weeks) + (isDetailed(p) ? ' · ' + pr.pct + '%' : '') + '</span>';
-      if (isDetailed(p)) h += bar(pr.pct, 'Прогресс проекта ' + p.title);
+      h += '<span class="step-meta">' + esc(p.weeks) + (tracked ? ' · ' + pr.pct + '%' : '') + '</span>';
+      if (tracked) h += bar(pr.pct, 'Прогресс: ' + p.title);
       h += '</span></a></li>';
     });
     h += '</ol>';
@@ -146,22 +150,21 @@
 
   // ---------- проект ----------
 
-  var TABS = [["brief", "Бриф"], ["theory", "Теория"], ["plan", "План"], ["ready", "Готовность"]];
+  var TABS = [["brief", "Бриф"], ["theory", "Уроки"], ["plan", "План"], ["ready", "Готовность"]];
 
-  function viewProject(p) {
-    var idx = PATH.projects.indexOf(p);
+  function viewProject(p, tab) {
     var pr = progress(p);
     var h = '';
     h += '<a class="back" href="#">← Весь путь</a>';
     h += '<header class="phead">';
-    h += '<p class="eyebrow">Проект ' + (idx + 1) + ' · ' + esc(p.weeks) + '</p>';
+    h += '<p class="eyebrow">' + (isIntro(p) ? 'Старт' : 'Проект ' + projectNumber(p)) + ' · ' + esc(p.weeks) + '</p>';
     h += '<h1>' + esc(p.title) + '</h1>';
     h += '<p class="lead">' + esc(p.tagline) + '</p>';
-    h += '<ul class="chips">' + p.stack.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>';
-    if (isDetailed(p)) h += bar(pr.pct, 'Прогресс проекта') + '<p class="hint">' + pr.done + ' из ' + pr.total + ' пунктов</p>';
+    if (p.stack.length) h += '<ul class="chips">' + p.stack.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>';
+    if (pr.total) h += bar(pr.pct, 'Прогресс') + '<p class="hint">' + pr.done + ' из ' + pr.total + ' пунктов</p>';
     h += '</header>';
 
-    if (isDetailed(p)) {
+    if (hasPlan(p)) {
       h += '<nav class="tabs" role="tablist">';
       TABS.forEach(function (t) {
         h += '<a role="tab" aria-selected="' + (tab === t[0]) + '" href="#' + p.id + '/' + t[0] + '">' + t[1] + '</a>';
@@ -169,72 +172,158 @@
       h += '</nav>';
     }
 
-    var current = isDetailed(p) ? tab : "brief";
-    if (current === "brief") h += briefHtml(p, idx);
-    if (current === "theory") h += theoryHtml(p);
-    if (current === "plan") h += planHtml(p);
-    if (current === "ready") h += readyHtml(p);
+    if (isIntro(p)) h += lessonListHtml(p);
+    else if (!hasPlan(p) || tab === "brief") h += briefHtml(p);
+    else if (tab === "theory") h += lessonListHtml(p);
+    else if (tab === "plan") h += planHtml(p);
+    else if (tab === "ready") h += readyHtml(p);
 
     app.innerHTML = h;
   }
 
-  function briefHtml(p, idx) {
+  function briefHtml(p) {
     var b = p.brief, h = '<section class="panel">';
-    h += '<h2>Задача</h2><p>' + esc(b.goal) + '</p>';
+    h += '<h2>Задача</h2><p>' + fmt(b.goal) + '</p>';
     if (b.questions) {
       h += '<h2>Вопросы, на которые отвечаешь</h2><ul class="plain">' +
-        b.questions.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ul>';
+        b.questions.map(function (q) { return '<li>' + fmt(q) + '</li>'; }).join('') + '</ul>';
     }
     h += '<h2>Что должно получиться</h2><ul class="plain">' +
-      b.result.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') + '</ul>';
-    if (b.data) h += '<h2>Данные</h2><p>' + esc(b.data) + '</p>';
-    if (!isDetailed(p)) {
-      h += '<p class="note">Теория, недельный план и критерии готовности появятся здесь, когда будет закончен проект ' + idx + '.</p>';
+      b.result.map(function (r) { return '<li>' + fmt(r) + '</li>'; }).join('') + '</ul>';
+    if (b.data) h += '<h2>Данные</h2><p>' + fmt(b.data) + '</p>';
+    if (b.note) h += '<p class="note">' + fmt(b.note) + '</p>';
+    if (!hasPlan(p)) {
+      h += '<p class="note">Уроки, недельный план и критерии готовности появятся здесь, когда будет закончен проект ' +
+        (projectNumber(p) - 1) + '.</p>';
     }
     return h + '</section>';
   }
 
-  function theoryHtml(p) {
-    var h = '';
-    p.theory.forEach(function (t) {
-      var correct = t.quiz.filter(function (_, qi) { return quizCorrect(p, p.id + "." + t.id + ".q" + qi); }).length;
-      h += '<section class="panel"><h2>' + esc(t.title) + '</h2>';
-      h += '<ul class="plain">' + t.points.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
-      h += '<pre><code>' + esc(t.code) + '</code></pre>';
-      h += '<div class="quiz-head"><h3>Проверь себя</h3><span class="hint">' + correct + ' из ' + t.quiz.length + '</span></div>';
-      t.quiz.forEach(function (q, qi) {
-        var key = p.id + "." + t.id + ".q" + qi;
-        var picked = state.quiz[key];
-        var answered = picked !== undefined;
-        h += '<fieldset class="q"><legend>' + esc(q.q) + '</legend>';
-        // порядок вариантов постоянный для вопроса, но правильный не всегда первый
-        order(q.options.length, qi + t.id.length).forEach(function (oi) {
-          var cls = "opt";
-          if (answered && oi === q.answer) cls += " right";
-          else if (answered && oi === picked) cls += " wrong";
-          h += '<button type="button" class="' + cls + '" data-act="answer" data-key="' + key + '" data-i="' + oi + '"' +
-            (answered ? ' disabled' : '') + '>' + esc(q.options[oi]) + '</button>';
-        });
-        if (answered) {
-          h += '<p class="why"><strong>' + (picked === q.answer ? 'Верно.' : 'Неверно.') + '</strong> ' + esc(q.why) + '</p>';
-        }
-        h += '</fieldset>';
-      });
-      h += '<button type="button" class="ghost" data-act="reset-quiz" data-prefix="' + p.id + "." + t.id + '.">Пройти заново</button>';
-      h += '</section>';
+  function lessonListHtml(p) {
+    var h = '<ol class="lessons">';
+    p.theory.forEach(function (t, i) {
+      var s = lessonScore(p, t);
+      var done = s.right === s.total;
+      h += '<li><a class="lesson' + (done ? ' done' : '') + '" href="#' + p.id + '/theory/' + t.id + '">';
+      h += '<span class="lesson-n">' + (done ? '✓' : (i + 1)) + '</span>';
+      h += '<span class="step-body"><span class="lesson-title">' + esc(t.title) + '</span>';
+      h += '<span class="step-meta">' + esc(t.time) + ' · квиз ' + s.right + ' из ' + s.total + '</span></span>';
+      h += '</a></li>';
     });
-    return h;
+    return h + '</ol>';
   }
 
-  // Детерминированная перестановка индексов 0..n-1
+  // ---------- урок ----------
+
+  function codeBlock(code, label) {
+    return (label ? '<p class="code-label">' + label + '</p>' : '') + '<pre><code>' + esc(code) + '</code></pre>';
+  }
+
+  function viewLesson(p, t) {
+    var idx = p.theory.indexOf(t);
+    var backHref = '#' + p.id + (isIntro(p) ? '' : '/theory');
+    var h = '';
+    h += '<a class="back" href="' + backHref + '">← ' + (isIntro(p) ? esc(p.title) : 'Уроки проекта') + '</a>';
+    h += '<header class="phead">';
+    h += '<p class="eyebrow">Урок ' + (idx + 1) + ' из ' + p.theory.length + ' · ' + esc(t.time) + '</p>';
+    h += '<h1>' + esc(t.title) + '</h1>';
+    h += '</header>';
+
+    h += '<section class="panel why-box"><h2>Зачем это нужно</h2><p>' + fmt(t.why) + '</p></section>';
+
+    t.sections.forEach(function (s) {
+      h += '<section class="panel"><h2>' + esc(s.h) + '</h2>';
+      s.p.forEach(function (x) { h += '<p>' + fmt(x) + '</p>'; });
+      if (s.code) h += codeBlock(s.code);
+      if (s.out) h += codeBlock(s.out, 'Что напечатает программа');
+      if (s.note) h += '<p class="note">' + fmt(s.note) + '</p>';
+      h += '</section>';
+    });
+
+    if (t.mistakes) {
+      h += '<section class="panel"><h2>Частые ошибки</h2><ul class="mistakes">';
+      t.mistakes.forEach(function (m) {
+        h += '<li><p class="bad">' + fmt(m.bad) + '</p><p class="fix">' + fmt(m.fix) + '</p></li>';
+      });
+      h += '</ul></section>';
+    }
+
+    if (t.practice) {
+      h += '<section class="panel"><h2>Попробуй сам</h2>';
+      h += '<p class="hint">Сначала реши, потом открывай решение. Подсмотренное решение ничему не учит.</p>';
+      t.practice.forEach(function (x, i) {
+        h += '<div class="task"><p><strong>Задание ' + (i + 1) + '.</strong> ' + fmt(x.task) + '</p>';
+        h += '<details><summary>Показать решение</summary>' + codeBlock(x.solution) + '</details></div>';
+      });
+      h += '</section>';
+    }
+
+    if (t.terms) {
+      h += '<section class="panel"><h2>Словарик</h2>';
+      h += '<p class="hint">Термины на английском: так они называются в документации, вакансиях и на собеседованиях.</p>';
+      h += '<dl class="terms">';
+      t.terms.forEach(function (x) { h += '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; });
+      h += '</dl></section>';
+    }
+
+    h += quizHtml(p, t);
+
+    if (t.sources) {
+      h += '<section class="panel"><h2>Источники</h2><ul class="plain">';
+      t.sources.forEach(function (s) {
+        h += '<li><a class="link" href="' + esc(s.u) + '" target="_blank" rel="noopener">' + esc(s.t) + '</a></li>';
+      });
+      h += '</ul></section>';
+    }
+
+    var prev = p.theory[idx - 1], next = p.theory[idx + 1];
+    h += '<nav class="pager">';
+    h += prev ? '<a href="#' + p.id + '/theory/' + prev.id + '">← ' + esc(prev.title) + '</a>' : '<span></span>';
+    h += next ? '<a class="pager-next" href="#' + p.id + '/theory/' + next.id + '">' + esc(next.title) + ' →</a>'
+              : '<a class="pager-next" href="' + (isIntro(p) ? '#' : backHref) + '">' + (isIntro(p) ? 'К проектам →' : 'К списку уроков →') + '</a>';
+    h += '</nav>';
+
+    app.innerHTML = h;
+  }
+
+  function quizHtml(p, t) {
+    var s = lessonScore(p, t);
+    var h = '<section class="panel" id="quiz"><div class="quiz-head"><h2>Проверь себя</h2><span class="hint">' +
+      s.right + ' из ' + s.total + '</span></div>';
+    t.quiz.forEach(function (q, qi) {
+      var key = qKey(p, t, qi);
+      var picked = state.quiz[key];
+      var answered = picked !== undefined;
+      h += '<fieldset class="q"><legend>' + fmt(q.q) + '</legend>';
+      // порядок вариантов постоянный для вопроса, но правильный не всегда первый
+      order(q.options.length, qi * 31 + q.q.length + q.options[0].length).forEach(function (oi) {
+        var cls = "opt";
+        if (answered && oi === q.answer) cls += " right";
+        else if (answered && oi === picked) cls += " wrong";
+        h += '<button type="button" class="' + cls + '" data-act="answer" data-key="' + key + '" data-i="' + oi + '"' +
+          (answered ? ' disabled' : '') + '>' + esc(q.options[oi]) + '</button>';
+      });
+      if (answered) {
+        h += '<p class="why"><strong>' + (picked === q.answer ? 'Верно.' : 'Неверно.') + '</strong> ' + fmt(q.why) + '</p>';
+      }
+      h += '</fieldset>';
+    });
+    h += '<button type="button" class="ghost" data-act="reset-quiz" data-prefix="' + p.id + "." + t.id + '.">Пройти заново</button>';
+    return h + '</section>';
+  }
+
+  // Детерминированная перестановка индексов 0..n-1: правильный ответ попадает на разные места
   function order(n, seed) {
     var a = [];
     for (var i = 0; i < n; i++) a.push(i);
-    var shift = (seed * 7 + 3) % n;
+    var hash = Math.imul(seed + 1, 2654435761) >>> 0;
+    var shift = (hash >>> 16) % n;
     a = a.slice(shift).concat(a.slice(0, shift));
-    if (seed % 2) a.reverse();
+    if ((hash >>> 8) % 2) { var first = a.shift(); a.reverse(); a.unshift(first); }
     return a;
   }
+
+  // ---------- план и готовность ----------
 
   function checkbox(group, key, text) {
     var on = !!state[group][key];
@@ -245,10 +334,10 @@
   function planHtml(p) {
     var h = '';
     p.plan.forEach(function (w, wi) {
-      var done = w.tasks.filter(function (_, ti) { return state.tasks[p.id + ".w" + wi + ".t" + ti]; }).length;
+      var done = w.tasks.filter(function (_, ti) { return state.tasks[tKey(p, wi, ti)]; }).length;
       h += '<section class="panel"><div class="quiz-head"><h2>' + esc(w.title) + '</h2><span class="hint">' +
         done + ' из ' + w.tasks.length + '</span></div>';
-      w.tasks.forEach(function (t, ti) { h += checkbox("tasks", p.id + ".w" + wi + ".t" + ti, t); });
+      w.tasks.forEach(function (t, ti) { h += checkbox("tasks", tKey(p, wi, ti), t); });
       h += '</section>';
     });
     return h;
@@ -271,23 +360,29 @@
 
   // ---------- маршрутизация и события ----------
 
+  function parts() { return location.hash.replace(/^#/, "").split("/"); }
+
   function render() {
-    var parts = location.hash.replace(/^#/, "").split("/");
-    var p = project(parts[0]);
-    if (p) {
-      tab = parts[1] && TABS.some(function (t) { return t[0] === parts[1]; }) ? parts[1] : "brief";
-      viewProject(p);
-    } else {
-      viewHome();
+    var a = parts();
+    var p = project(a[0]);
+    if (!p) { viewHome(); return; }
+    if (a[1] === "theory" && a[2] && hasLessons(p)) {
+      var t = p.theory.filter(function (x) { return x.id === a[2]; })[0];
+      if (t) { viewLesson(p, t); return; }
     }
+    var tab = TABS.some(function (t) { return t[0] === a[1]; }) ? a[1] : "brief";
+    viewProject(p, tab);
   }
 
-  var lastHash = null;
+  // Страница = проект + урок. Переключение вкладок внутри проекта не прокручивает наверх.
+  function pageKey() { var a = parts(); return a[0] + "|" + (a[2] || ""); }
+
+  var lastPage = pageKey();
   window.addEventListener("hashchange", function () {
-    var samePage = lastHash !== null && lastHash.split("/")[0] === location.hash.split("/")[0];
-    lastHash = location.hash;
+    var now = pageKey();
     render();
-    if (!samePage) window.scrollTo(0, 0);
+    if (now !== lastPage) window.scrollTo(0, 0);
+    lastPage = now;
   });
 
   app.addEventListener("change", function (e) {
@@ -307,6 +402,16 @@
     }
   });
 
+  // Перерисовка не должна сдвигать страницу и закрывать открытые решения
+  function rerenderInPlace() {
+    var y = window.scrollY;
+    var open = [];
+    app.querySelectorAll("details").forEach(function (d, i) { if (d.open) open.push(i); });
+    render();
+    app.querySelectorAll("details").forEach(function (d, i) { if (open.indexOf(i) !== -1) d.open = true; });
+    window.scrollTo(0, y);
+  }
+
   app.addEventListener("click", function (e) {
     var el = e.target.closest("[data-act]");
     if (!el) return;
@@ -315,14 +420,14 @@
     if (act === "answer") {
       state.quiz[el.dataset.key] = Number(el.dataset.i);
       save();
-      render();
+      rerenderInPlace();
     }
     if (act === "reset-quiz") {
       Object.keys(state.quiz).forEach(function (k) {
         if (k.indexOf(el.dataset.prefix) === 0) delete state.quiz[k];
       });
       save();
-      render();
+      rerenderInPlace();
     }
     if (act === "export") {
       var box = document.getElementById("sync-box");
@@ -354,6 +459,5 @@
     if (m) m.textContent = text;
   }
 
-  lastHash = location.hash;
   render();
 })();
