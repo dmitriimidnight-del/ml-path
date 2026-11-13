@@ -9,7 +9,7 @@
   // ---------- состояние ----------
 
   function emptyState() {
-    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {} };
+    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {}, diag: {}, log: {}, active: {}, termsAdded: {} };
   }
 
   function load() {
@@ -185,6 +185,8 @@
     h += '<p class="lead">' + esc(PATH.subtitle) + '</p>';
     h += '</header>';
 
+    h += diagInvite();
+
     if (next) {
       h += '<a class="next" href="' + next.href + '">';
       h += '<span class="next-label">Следующий шаг</span>';
@@ -194,6 +196,7 @@
     }
 
     h += reviewCard();
+    h += weekCard();
 
     h += '<ol class="ladder">';
     PATH.projects.forEach(function (p) {
@@ -209,6 +212,9 @@
       h += '</span></a></li>';
     });
     h += '</ol>';
+
+    h += '<nav class="tools"><a href="#glossary">Словарь терминов</a><a href="#diagnostic">' +
+      (state.diag.done ? 'Диагностика: ' + diagScore().right + ' из ' + diagScore().total : 'Диагностика по Python') + '</a></nav>';
 
     h += '<section class="offline" id="offline-panel" aria-live="polite"></section>';
 
@@ -283,7 +289,10 @@
       h += '<li><a class="lesson' + (done ? ' done' : '') + '" href="#' + p.id + '/theory/' + t.id + '">';
       h += '<span class="lesson-n">' + (done ? '✓' : (i + 1)) + '</span>';
       h += '<span class="step-body"><span class="lesson-title">' + esc(t.title) + '</span>';
-      h += '<span class="step-meta">' + esc(t.time) + ' · квиз ' + s.right + ' из ' + s.total + '</span></span>';
+      h += '<span class="step-meta">' + esc(t.time) + ' · квиз ' + s.right + ' из ' + s.total + '</span>';
+      var dl = diagLessonNote(p, t);
+      if (dl) h += '<span class="diag-note ' + dl.cls + '">' + esc(dl.text) + '</span>';
+      h += '</span>';
       h += '</a></li>';
     });
     return h + '</ol>';
@@ -700,7 +709,7 @@
   function dueKeys() {
     var today = dayString(0);
     return Object.keys(state.review).filter(function (k) {
-      return state.review[k].due <= today && questionByKey(k);
+      return state.review[k].due <= today && (k.indexOf("term|") === 0 ? termByKey(k) : questionByKey(k));
     }).sort();
   }
 
@@ -728,6 +737,7 @@
   }
 
   function answerReview(key, picked) {
+    markActive();
     var qi = questionByKey(key);
     var item = state.review[key] || { box: 0 };
     var right = picked === qi.q.answer;
@@ -746,6 +756,7 @@
       ' дней. Ошибся — завтра снова.</p></header>';
 
     var key = reviewShown ? reviewShown.key : dueKeys()[0];
+    if (key && key.indexOf("term|") === 0) { app.innerHTML = h + termCardHtml(key); return; }
     if (!key) {
       h += '<section class="panel"><h2>На сегодня всё</h2>';
       if (reviewSession.done) {
@@ -778,6 +789,292 @@
       h += '<button type="button" class="run-btn" data-act="review-next">Дальше</button>';
     }
     h += '</fieldset></section>';
+    app.innerHTML = h;
+  }
+
+  // ---------- карточки терминов и словарь ----------
+
+  function termKey(p, tid, i) { return "term|" + p.id + "|" + tid + "|" + i; }
+
+  function termByKey(key) {
+    var a = key.split("|");
+    var p = project(a[1]);
+    if (!p || !p.theory) return null;
+    var t = p.theory.filter(function (x) { return x.id === a[2]; })[0];
+    if (!t || !t.terms || !t.terms[Number(a[3])]) return null;
+    return { p: p, t: t, term: t.terms[Number(a[3])] };
+  }
+
+  function addTerms(p, tid, offsetDays) {
+    var t = p.theory.filter(function (x) { return x.id === tid; })[0];
+    (t.terms || []).forEach(function (_, i) {
+      var k = termKey(p, tid, i);
+      if (!state.review[k]) state.review[k] = { box: 0, due: dayString(offsetDays) };
+    });
+    state.termsAdded[p.id + "." + tid] = true;
+  }
+
+  function termCardHtml(key) {
+    var it = termByKey(key);
+    var box = state.review[key] ? state.review[key].box : 0;
+    var enFirst = box < 2;                  // сначала узнавать английский термин, потом вспоминать его
+    var front = enFirst ? it.term[0] : it.term[1];
+    var back = enFirst ? it.term[1] : it.term[0];
+    var left = dueKeys().filter(function (k) { return k !== key; }).length;
+    var h = '<section class="panel term-card"><p class="hint">Термин · ' + esc(it.t.title) + (left ? ' · ещё ' + left : '') + '</p>';
+    h += '<p class="term-ask">' + (enFirst ? 'Что значит по-русски?' : 'Как это по-английски?') + '</p>';
+    h += '<p class="term-front">' + esc(front) + '</p>';
+    if (reviewShown && reviewShown.key === key && reviewShown.revealed) {
+      h += '<p class="term-back">' + esc(back) + '</p>';
+      h += '<div class="row"><button type="button" class="run-btn" data-act="term-grade" data-key="' + esc(key) + '" data-ok="1">Помню</button>';
+      h += '<button type="button" class="ghost small" data-act="term-grade" data-key="' + esc(key) + '" data-ok="0">Не вспомнил</button></div>';
+    } else {
+      h += '<button type="button" class="run-btn" data-act="term-reveal" data-key="' + esc(key) + '">Показать ответ</button>';
+    }
+    return h + '</section>';
+  }
+
+  function gradeTerm(key, ok) {
+    var item = state.review[key] || { box: 0 };
+    markActive();
+    scheduleReview(key, ok ? item.box + 1 : 0);
+    save();
+    reviewSession.done++;
+    if (ok) reviewSession.right++;
+    reviewShown = null;
+    render();
+    window.scrollTo(0, 0);
+  }
+
+  function allTerms() {
+    var list = [];
+    PATH.projects.forEach(function (p) {
+      (p.theory || []).forEach(function (t) {
+        (t.terms || []).forEach(function (x) { list.push({ en: x[0], ru: x[1], p: p, t: t }); });
+      });
+    });
+    return list.sort(function (a, b) { return a.en.toLowerCase() < b.en.toLowerCase() ? -1 : 1; });
+  }
+
+  function viewGlossary() {
+    var terms = allTerms();
+    var h = '<a class="back" href="#">← Весь путь</a>';
+    h += '<header class="phead"><p class="eyebrow">Словарь</p><h1>Термины</h1>';
+    h += '<p class="lead">' + terms.length + ' терминов из всех уроков. Так они звучат в документации, вакансиях и на собеседованиях.</p></header>';
+    h += '<input type="search" id="glossary-q" class="glossary-search" placeholder="Поиск по-английски или по-русски" aria-label="Поиск термина">';
+    h += '<dl class="terms glossary">';
+    terms.forEach(function (x) {
+      var hay = (x.en + " " + x.ru).toLowerCase();
+      h += '<div class="g-row" data-text="' + esc(hay) + '"><dt>' + esc(x.en) + '</dt><dd>' + esc(x.ru) +
+        ' <a class="g-src" href="#' + x.p.id + '/theory/' + x.t.id + '">' + esc(x.t.title) + '</a></dd></div>';
+    });
+    h += '</dl><p class="hint" id="glossary-empty" hidden>Ничего не нашлось.</p>';
+    app.innerHTML = h;
+  }
+
+  app.addEventListener("input", function (e) {
+    if (e.target.id !== "glossary-q") return;
+    var q = e.target.value.trim().toLowerCase();
+    var shown = 0;
+    app.querySelectorAll(".g-row").forEach(function (row) {
+      var on = !q || row.dataset.text.indexOf(q) !== -1;
+      row.hidden = !on;
+      if (on) shown++;
+    });
+    document.getElementById("glossary-empty").hidden = shown > 0;
+  });
+
+  // ---------- неделя и серия дней ----------
+
+  function markActive() { state.active[dayString(0)] = true; }
+
+  function isActive(d) { return (state.log[d] || 0) > 0 || !!state.active[d]; }
+
+  function streak() {
+    var n = 0, off = isActive(dayString(0)) ? 0 : -1;
+    while (isActive(dayString(off))) { n++; off--; }
+    return n;
+  }
+
+  function weekDays() {
+    var mondayOffset = (new Date().getDay() + 6) % 7;
+    var days = [];
+    for (var i = 0; i < 7; i++) days.push(dayString(i - mondayOffset));
+    return days;
+  }
+
+  function hoursText(min) {
+    var hrs = Math.round(min / 6) / 10;
+    return String(hrs).replace(".", ",");
+  }
+
+  function logTime(min) {
+    var today = dayString(0);
+    state.log[today] = Math.max(0, (state.log[today] || 0) + min);
+    if (min > 0) markActive();
+    save();
+    rerenderInPlace();
+  }
+
+  function weekCard() {
+    var goal = state.settings.weekGoal || 12;
+    var days = weekDays(), today = dayString(0);
+    var mins = days.map(function (d) { return state.log[d] || 0; });
+    var total = mins.reduce(function (a, b) { return a + b; }, 0);
+    var max = Math.max(120, Math.max.apply(null, mins));
+    var names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+    var pctDone = Math.min(100, Math.round(total / (goal * 60) * 100));
+    var st = streak();
+
+    var h = '<section class="week"><div class="quiz-head"><h2>Эта неделя</h2><span class="week-total">' +
+      hoursText(total) + ' из ' + goal + ' ч</span></div>';
+    h += bar(pctDone, 'Часы за неделю');
+    h += '<div class="week-days">';
+    days.forEach(function (d, i) {
+      var hgt = Math.round(mins[i] / max * 48);
+      h += '<div class="wd' + (d === today ? ' today' : '') + (isActive(d) ? ' on' : '') + '">' +
+        '<span class="wd-bar" style="height:' + Math.max(hgt, isActive(d) ? 4 : 0) + 'px"></span>' +
+        '<span class="wd-name">' + names[i] + '</span></div>';
+    });
+    h += '</div>';
+    h += '<p class="hint">Сегодня: ' + (state.log[today] || 0) + ' мин' +
+      (st ? ' · Серия: ' + st + ' ' + plural(st, "день", "дня", "дней") + ' подряд' : '') + '</p>';
+    h += '<div class="row"><button type="button" class="ghost small" data-act="log-time" data-min="30">+30 мин</button>';
+    h += '<button type="button" class="ghost small" data-act="log-time" data-min="60">+1 ч</button>';
+    h += '<button type="button" class="ghost small" data-act="log-time" data-min="-30"' + ((state.log[today] || 0) ? '' : ' disabled') +
+      ' aria-label="Убрать 30 минут">−30</button></div>';
+    h += '<label class="week-goal">Цель в неделю: <select data-setting-num="weekGoal" aria-label="Цель часов в неделю">';
+    for (var g = 5; g <= 20; g++) h += '<option value="' + g + '"' + (g === goal ? ' selected' : '') + '>' + g + ' ч</option>';
+    h += '</select></label>';
+    h += '<p class="hint">Отмечай время, когда занимаешься на компьютере. Дни, когда ты отвечал на вопросы или отмечал задачи, засчитываются в серию сами.</p>';
+    return h + '</section>';
+  }
+
+  // ---------- диагностика ----------
+
+  var diagShown = null;   // { q, picked }
+
+  function diagScore() {
+    var qs = window.DIAGNOSTIC ? window.DIAGNOSTIC.questions : [];
+    var answers = state.diag.answers || {};
+    var right = qs.filter(function (q, i) { return answers[i] === q.answer; }).length;
+    return { right: right, total: qs.length };
+  }
+
+  function diagTopicStatus() {
+    if (!state.diag.done || !window.DIAGNOSTIC) return null;
+    var res = {};
+    window.DIAGNOSTIC.questions.forEach(function (q, i) {
+      var ok = state.diag.answers[i] === q.answer;
+      res[q.topic] = res[q.topic] === undefined ? ok : res[q.topic] && ok;
+    });
+    return res;
+  }
+
+  function diagLessonNote(p, t) {
+    var st = diagTopicStatus();
+    if (!st) return null;
+    var route = p.id + "/theory/" + t.id;
+    var topics = window.DIAGNOSTIC.topics;
+    var related = Object.keys(topics).filter(function (k) { return topics[k].lesson === route; });
+    if (!related.length) return null;
+    var weak = related.filter(function (k) { return !st[k]; });
+    if (!weak.length) return { cls: "known", text: "По диагностике ты это знаешь: можно пролистать" };
+    return { cls: "weak", text: "Подтянуть: " + weak.map(function (k) { return topics[k].title.toLowerCase(); }).join(", ") };
+  }
+
+  function diagInvite() {
+    if (state.diag.done || !window.DIAGNOSTIC) return '';
+    var started = state.diag.answers && Object.keys(state.diag.answers).length;
+    return '<a class="next diag-card" href="#diagnostic"><span class="next-label">Сначала</span>' +
+      '<span class="next-text">' + (started ? 'Закончить диагностику по Python' : 'Диагностика по Python, 10 минут') + '</span>' +
+      '<span class="next-meta">Покажет, что ты уже знаешь и какие темы подтянуть.</span></a>';
+  }
+
+  function answerDiag(qi, picked) {
+    state.diag.answers = state.diag.answers || {};
+    state.diag.answers[qi] = picked;
+    markActive();
+    save();
+    diagShown = { q: qi, picked: picked };
+    render();
+  }
+
+  function diagNext() {
+    diagShown = null;
+    var total = window.DIAGNOSTIC.questions.length;
+    if (Object.keys(state.diag.answers).length >= total) {
+      state.diag.done = true;
+      state.diag.date = dayString(0);
+      save();
+    }
+    render();
+    window.scrollTo(0, 0);
+  }
+
+  function viewDiagnostic() {
+    var D = window.DIAGNOSTIC;
+    var h = '<a class="back" href="#">← Весь путь</a>';
+    h += '<header class="phead"><p class="eyebrow">Диагностика</p><h1>База Python</h1></header>';
+
+    if (!state.diag.answers) {
+      h += '<section class="panel"><p>' + D.questions.length + ' коротких вопросов по основам Python: строки, списки, словари, циклы, функции и другое. ' +
+        'Почти все — «что напечатает код».</p><p>Если не знаешь ответа, выбирай «Не знаю»: это честнее угадывания, и рекомендации будут точнее. ' +
+        'Результат покажет, какие уроки можно пролистать, а какие темы подтянуть.</p>' +
+        '<button type="button" class="run-btn" data-act="diag-start">Начать</button></section>';
+      app.innerHTML = h;
+      return;
+    }
+
+    if (!state.diag.done) {
+      var qi = diagShown ? diagShown.q : D.questions.findIndex(function (_, i) { return state.diag.answers[i] === undefined; });
+      if (qi === -1) { diagNext(); return; }
+      var q = D.questions[qi];
+      var dontKnow = q.options.length;
+      h += '<section class="panel"><p class="hint">Вопрос ' + (qi + 1) + ' из ' + D.questions.length + ' · ' + esc(D.topics[q.topic].title) + '</p>';
+      h += bar(Math.round(qi / D.questions.length * 100), 'Прогресс диагностики');
+      h += '<fieldset class="q"><legend>' + esc(q.q) + '</legend>';
+      if (q.code) h += '<pre><code>' + esc(q.code) + '</code></pre>';
+      var opts = order(q.options.length, qi * 31 + q.q.length + q.options[0].length).concat([dontKnow]);
+      opts.forEach(function (oi) {
+        var cls = "opt", answered = !!diagShown;
+        if (answered && oi === q.answer) cls += " right";
+        else if (answered && oi === diagShown.picked) cls += " wrong";
+        h += '<button type="button" class="' + cls + '" data-act="diag-answer" data-q="' + qi + '" data-i="' + oi + '"' +
+          (answered ? ' disabled' : '') + '>' + esc(oi === dontKnow ? "Не знаю" : q.options[oi]) + '</button>';
+      });
+      if (diagShown) {
+        var ok = diagShown.picked === q.answer;
+        h += '<p class="why"><strong>' + (ok ? 'Верно.' : diagShown.picked === dontKnow ? 'Ответ:' : 'Неверно.') + '</strong> ' + esc(q.why) + '</p>';
+        var last = Object.keys(state.diag.answers).length >= D.questions.length;
+        h += '<button type="button" class="run-btn" data-act="diag-next">' + (last ? 'Результаты' : 'Дальше') + '</button>';
+      }
+      h += '</fieldset></section>';
+      app.innerHTML = h;
+      return;
+    }
+
+    var sc = diagScore(), st = diagTopicStatus();
+    h += '<section class="panel"><h2>' + sc.right + ' из ' + sc.total + '</h2>';
+    var weak = Object.keys(D.topics).filter(function (k) { return st[k] === false; });
+    h += '<p>' + (weak.length ? 'Темы, которые стоит подтянуть, — сверху. С них начни первый проект.' :
+      'Отлично: по базе Python пробелов не видно. Уроки про Python в проекте 1 можно читать бегло.') + '</p>';
+    h += '<ul class="diag-topics">';
+    Object.keys(D.topics).sort(function (a, b) { return (st[a] ? 1 : 0) - (st[b] ? 1 : 0); }).forEach(function (k) {
+      if (st[k] === undefined) return;
+      var tp = D.topics[k];
+      h += '<li class="' + (st[k] ? 'known' : 'weak') + '"><span>' + (st[k] ? '✓' : '✕') + ' ' + esc(tp.title) + '</span>';
+      if (!st[k]) {
+        var links = [];
+        if (tp.lesson) links.push('<a href="#' + tp.lesson + '">урок в приложении</a>');
+        if (tp.doc) links.push('<a href="' + tp.doc + '" target="_blank" rel="noopener">учебник Python</a>');
+        h += '<span class="diag-links">' + links.join(' · ') + '</span>';
+      }
+      h += '</li>';
+    });
+    h += '</ul>';
+    h += '<p class="hint">Пройдено ' + esc(state.diag.date || '') + '. Отметки «можно пролистать» и «подтянуть» появились в списке уроков.</p>';
+    h += '<button type="button" class="ghost small" data-act="diag-reset">Пройти заново</button></section>';
     app.innerHTML = h;
   }
 
@@ -833,7 +1130,15 @@
       h += '<p class="hint">Термины на английском: так они называются в документации, вакансиях и на собеседованиях.</p>';
       h += '<dl class="terms">';
       t.terms.forEach(function (x) { h += '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; });
-      h += '</dl></section>';
+      h += '</dl>';
+      if (state.termsAdded[p.id + "." + t.id]) {
+        h += '<p class="hint terms-added">✓ Термины этого урока в повторении.</p>';
+      } else {
+        h += '<button type="button" class="ghost small" data-act="add-terms" data-p="' + p.id + '" data-t="' + t.id +
+          '">Учить эти термины в повторении</button>';
+        h += '<p class="hint">Добавятся сами, когда ответишь на все вопросы квиза.</p>';
+      }
+      h += '</section>';
     }
 
     h += quizHtml(p, t);
@@ -936,6 +1241,8 @@
     var a = parts();
     var p = project(a[0]);
     if (a[0] === "review") { viewReview(); return; }
+    if (a[0] === "glossary") { viewGlossary(); return; }
+    if (a[0] === "diagnostic") { viewDiagnostic(); return; }
     if (!p) { viewHome(); return; }
     if (a[1] === "theory" && a[2] && hasLessons(p)) {
       var t = p.theory.filter(function (x) { return x.id === a[2]; })[0];
@@ -958,6 +1265,12 @@
 
   app.addEventListener("change", function (e) {
     var el = e.target;
+    if (el.dataset && el.dataset.settingNum) {
+      state.settings[el.dataset.settingNum] = Number(el.value);
+      save();
+      rerenderInPlace();
+      return;
+    }
     if (el.dataset && el.dataset.setting) {
       state.settings[el.dataset.setting] = el.checked;
       save();
@@ -965,6 +1278,7 @@
       return;
     }
     if (el.type === "checkbox" && el.dataset.key) {
+      if (el.checked) markActive();
       if (el.checked) state[el.dataset.group][el.dataset.key] = true;
       else delete state[el.dataset.group][el.dataset.key];
       save();
@@ -1003,13 +1317,27 @@
     }
 
     if (act === "offline-download") { downloadOffline(); return; }
+    if (act === "log-time") { logTime(Number(el.dataset.min)); return; }
+    if (act === "add-terms") { addTerms(project(el.dataset.p), el.dataset.t, 0); save(); rerenderInPlace(); return; }
+    if (act === "term-reveal") { reviewShown = { key: el.dataset.key, revealed: true }; render(); return; }
+    if (act === "term-grade") { gradeTerm(el.dataset.key, el.dataset.ok === "1"); return; }
+    if (act === "diag-start") { state.diag = { answers: {} }; save(); diagShown = null; render(); window.scrollTo(0, 0); return; }
+    if (act === "diag-answer") { answerDiag(Number(el.dataset.q), Number(el.dataset.i)); return; }
+    if (act === "diag-next") { diagNext(); return; }
+    if (act === "diag-reset") { state.diag = {}; save(); diagShown = null; render(); window.scrollTo(0, 0); return; }
     if (act === "reveal") { revealPrediction(el.closest(".predict")); return; }
     if (act === "review-answer") { answerReview(el.dataset.key, Number(el.dataset.i)); return; }
     if (act === "review-next") { reviewShown = null; render(); window.scrollTo(0, 0); return; }
 
     if (act === "answer") {
       var qi = questionByKey(el.dataset.key);
+      markActive();
       if (qi && Number(el.dataset.i) !== qi.q.answer) scheduleReview(el.dataset.key, 0);
+      if (qi) {
+        state.quiz[el.dataset.key] = Number(el.dataset.i);
+        var allAnswered = qi.t.quiz.every(function (_, n) { return state.quiz[qi.p.id + "." + qi.t.id + ".q" + n] !== undefined; });
+        if (allAnswered && !state.termsAdded[qi.p.id + "." + qi.t.id]) addTerms(qi.p, qi.t.id, 1);
+      }
       save();
       rerenderInPlace();
     }
