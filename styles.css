@@ -457,3 +457,10 @@ pre code { background: none; padding: 0; font-size: inherit; color: inherit; ove
 /* ---------- повторение ---------- */
 .review-card { background: var(--gold); color: #1e1c17; }
 .review-later { margin: -12px 0 24px; }
+
+/* ---------- офлайн ---------- */
+.offline { margin-top: 28px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.offline h2 { font-size: 1.15rem; }
+.offline p { margin: 0 0 8px; }
+.offline .run-btn { margin: 4px 0 10px; }
+.run-btn:disabled { opacity: 0.5; cursor: default; }

@@ -102,6 +102,77 @@
 
   // ---------- главная ----------
 
+  // ---------- офлайн ----------
+
+  var offlineBusy = false;
+
+  async function pythonCached() {
+    if (!window.caches) return false;
+    try {
+      var cache = await caches.open("mlpath-pyodide");
+      var keys = await cache.keys();
+      var urls = keys.map(function (r) { return r.url; });
+      var has = function (part) { return urls.some(function (u) { return u.indexOf(part) !== -1; }); };
+      return has("pyodide.asm.wasm") && has("pandas") && has("scikit_learn") && has("matplotlib");
+    } catch (e) { return false; }
+  }
+
+  async function storageUsed() {
+    if (!navigator.storage || !navigator.storage.estimate) return null;
+    var est = await navigator.storage.estimate();
+    return Math.round((est.usage || 0) / 1048576);
+  }
+
+  async function refreshOffline(message) {
+    var panel = document.getElementById("offline-panel");
+    if (!panel) return;
+    var swOk = "serviceWorker" in navigator;
+    var py = await pythonCached();
+    var used = await storageUsed();
+    panel = document.getElementById("offline-panel");
+    if (!panel) return;
+    var h = '<h2>Без интернета</h2>';
+    if (!navigator.onLine) h += '<p class="run-diff">Сейчас нет интернета.</p>';
+    h += '<p>' + (swOk ? '✓ Уроки, квизы, графики и прогресс работают без интернета.' :
+      'Этот браузер не умеет работать без интернета.') + '</p>';
+    if (py) {
+      h += '<p>✓ Python скачан: кнопка «Запустить» работает без интернета.</p>';
+    } else {
+      h += '<p>Python ещё не скачан. Скачай его один раз при Wi-Fi, и примеры будут запускаться без сети.</p>';
+      h += '<button type="button" class="run-btn" data-act="offline-download"' + (offlineBusy || !navigator.onLine ? ' disabled' : '') +
+        '>Скачать Python для офлайна</button>';
+    }
+    if (message) h += '<p class="run-status">' + esc(message) + '</p>';
+    if (used !== null) h += '<p class="hint">Приложение занимает на устройстве около ' + used + ' МБ.</p>';
+    panel.innerHTML = h;
+  }
+
+  async function downloadOffline() {
+    if (offlineBusy || !window.Runner) return;
+    offlineBusy = true;
+    refreshOffline("Начинаю загрузку…");
+    try {
+      if (navigator.storage && navigator.storage.persist) await navigator.storage.persist();
+      await window.Runner.preload(function (text) { refreshOffline(text); });
+      offlineBusy = false;
+      var ok = await pythonCached();
+      refreshOffline(ok ? "Готово. Теперь Python работает без интернета." :
+        "Python загрузился, но не сохранился для офлайна. Закрой приложение, открой снова и попробуй ещё раз.");
+    } catch (e) {
+      offlineBusy = false;
+      refreshOffline("Не получилось скачать. Проверь интернет и попробуй ещё раз.");
+    }
+  }
+
+  window.addEventListener("online", function () { refreshOffline(); });
+  window.addEventListener("offline", function () { refreshOffline(); });
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () { /* без офлайна, но приложение работает */ });
+    });
+  }
+
   function viewHome() {
     var real = realProjects();
     var finished = real.filter(function (p) { return hasPlan(p) && progress(p).pct === 100; }).length;
@@ -139,6 +210,8 @@
     });
     h += '</ol>';
 
+    h += '<section class="offline" id="offline-panel" aria-live="polite"></section>';
+
     h += '<details class="sync"><summary>Перенести прогресс на другое устройство</summary>';
     h += '<p>Прогресс хранится в браузере на этом устройстве. Чтобы продолжить на другом, скопируй код здесь и вставь его там.</p>';
     h += '<textarea id="sync-box" rows="3" spellcheck="false" aria-label="Код прогресса"></textarea>';
@@ -148,6 +221,7 @@
     h += '</details>';
 
     app.innerHTML = h;
+    refreshOffline();
   }
 
   // ---------- проект ----------
@@ -430,7 +504,10 @@
       }
     } catch (e) {
       setOut(box, '<div class="run-error"><p><strong>Не удалось загрузить Python.</strong></p>' +
-        '<p>При первом запуске нужен интернет. Проверь соединение и нажми «Запустить» ещё раз.</p></div>');
+        (navigator.onLine
+          ? '<p>Проверь соединение и нажми «Запустить» ещё раз.</p>'
+          : '<p>Сейчас нет интернета, а Python ещё не скачан для офлайна. Когда появится сеть, нажми на главной странице «Скачать Python для офлайна».</p>') +
+        '</div>');
     } finally {
       running = false;
       box.classList.remove("busy");
@@ -925,6 +1002,7 @@
       if (act === "reset-space") { handleResetSpace(box); return; }
     }
 
+    if (act === "offline-download") { downloadOffline(); return; }
     if (act === "reveal") { revealPrediction(el.closest(".predict")); return; }
     if (act === "review-answer") { answerReview(el.dataset.key, Number(el.dataset.i)); return; }
     if (act === "review-next") { reviewShown = null; render(); window.scrollTo(0, 0); return; }

@@ -14,6 +14,7 @@
     return new Promise(function (resolve, reject) {
       var s = document.createElement("script");
       s.src = src;
+      s.crossOrigin = "anonymous";   // чтобы сервис-воркер мог честно сохранить файл
       s.onload = resolve;
       s.onerror = function () { s.remove(); reject(new Error("Не загрузился " + src)); };
       document.head.appendChild(s);
@@ -67,5 +68,15 @@
     await py.runPythonAsync("lesson_reset(_lesson_key)");
   }
 
-  window.Runner = { run: run, reset: reset, isReady: function () { return !!py; } };
+  // Скачать Python и все библиотеки уроков заранее, чтобы потом работать без интернета
+  var OFFLINE_PACKAGES = ["numpy", "pandas", "matplotlib", "scikit-learn", "pydantic"];
+
+  async function preload(status) {
+    var instance = await ensure(status);
+    status("Скачиваю библиотеки: numpy, pandas, matplotlib, scikit-learn…");
+    await instance.loadPackage(OFFLINE_PACKAGES, { messageCallback: function () {} });
+    return true;
+  }
+
+  window.Runner = { run: run, reset: reset, preload: preload, isReady: function () { return !!py; } };
 })();
