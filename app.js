@@ -2285,8 +2285,48 @@
     } else {
       h += '<p class="' + (m.solved ? 'run-ok' : 'code-label') + '">' + (m.solved ? 'Верно.' : 'Ответ') + '</p>' + codeBlock(t.expected);
       h += '<p class="why">' + fmt(t.why) + '</p>';
+      h += traceHtml(t);
     }
     return h;
+  }
+
+  // ---------- пошаговое выполнение ----------
+  // Шаги записаны генератором при запуске кода в Python 3.13: строка, переменные до неё, вывод к этому моменту.
+
+  function traceHtml(t) {
+    if (!t.trace) return '';
+    var m = pyMem[t.id] || {};
+    if (m.step === undefined) return '<div class="row"><button type="button" class="ghost small" data-act="py-trace" data-id="' + t.id + '">▶ Пройти по шагам</button>' +
+      '<span class="hint">Посмотреть, какая строка выполняется и как меняются переменные</span></div>';
+    var steps = t.trace.steps, k = Math.max(0, Math.min(m.step, steps.length - 1)), st = steps[k];
+    var prev = k > 0 ? steps[k - 1] : null;
+    var lines = t.code.split("\n");
+    var where = st.scope === "lambda" ? "в lambda" : st.scope === "генератор" ? "в генераторе" : st.scope ? "в функции " + st.scope : "";
+    var status;
+    if (st.line === -1) status = 'Программа закончилась.';
+    else if (st.ret !== undefined) status = (st.scope === "lambda" ? 'lambda' : 'Функция <code>' + esc(st.scope) + '</code>') + ' возвращает <code>' + esc(st.ret) + '</code>.';
+    else status = 'Сейчас выполнится строка ' + (st.line + 1) + (where ? ' ' + esc(where) : '') + '.';
+    var h = '<div class="py-trace" aria-live="polite"><p class="code-label">Шаг ' + (k + 1) + ' из ' + steps.length + '</p>';
+    h += '<pre class="py-code trace-code"><code>' + lines.map(function (l, i) {
+      return '<span class="tl' + (i === st.line ? ' cur' : '') + '"><span class="ln" aria-hidden="true">' + (i + 1) + '</span>' + (esc(l) || ' ') + '</span>';
+    }).join('') + '</code></pre>';
+    h += '<p class="trace-status">' + status + '</p>';
+    var old = {};
+    if (prev && prev.scope === st.scope) prev.vars.forEach(function (v) { old[v[0]] = v[1]; });
+    h += '<p class="code-label">Переменные' + (where ? ' ' + esc(where) : '') + '</p>';
+    if (st.vars.length) {
+      h += '<table class="trace-vars"><tbody>' + st.vars.map(function (v) {
+        var changed = prev && prev.scope === st.scope && old[v[0]] !== v[1];
+        return '<tr' + (changed ? ' class="changed"' : '') + '><th scope="row"><code>' + esc(v[0]) + '</code></th><td><code>' + esc(v[1]) + '</code>' +
+          (changed ? ' <span class="trace-new">' + (v[0] in old ? 'изменилась' : 'новая') + '</span>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    } else h += '<p class="hint">Пока нет ни одной.</p>';
+    h += '<p class="code-label">Напечатано к этому моменту</p>' + (st.out ? codeBlock(st.out.replace(/\n$/, "")) : '<p class="hint">Пока ничего.</p>');
+    h += '<div class="row trace-nav"><button type="button" class="ghost" data-act="py-step" data-d="-1" data-id="' + t.id + '"' + (k === 0 ? ' disabled' : '') + '>◀ Назад</button>' +
+      '<button type="button" class="run-btn" data-act="py-step" data-d="1" data-id="' + t.id + '"' + (k === steps.length - 1 ? ' disabled' : '') + '>Дальше ▶</button>' +
+      '<button type="button" class="ghost small" data-act="py-trace-close" data-id="' + t.id + '">Закрыть</button></div>';
+    if (t.trace.cut) h += '<p class="hint">Показаны первые шаги, дальше программа повторяет то же самое.</p>';
+    return h + '</div>';
   }
 
   function checkPredict(id) {
@@ -2407,10 +2447,15 @@
         var res = JSON.parse(text.slice(at + 11));
         var printed = text.slice(0, at).trim();
         var passed = res.filter(function (x) { return x[2]; }).length;
-        var hh = '<ul class="py-results">';
+        var hh = '<ul class="py-results">', tipsShown = {};
         res.forEach(function (x) {
           hh += '<li class="' + (x[2] ? 'ok' : 'no') + '"><span>' + (x[2] ? '✓' : '✕') + '</span> <code>' + esc(x[0]) + '</code>' +
-            (x[2] ? '' : '<br>получилось <code>' + esc(x[1]) + '</code>, а нужно <code>' + esc(x[3]) + '</code>') + '</li>';
+            (x[2] ? '' : '<br>получилось <code>' + esc(x[1]) + '</code>, а нужно <code>' + esc(x[3]) + '</code>' +
+              (function (tip) {
+                if (!tip || tipsShown[tip]) return '';
+                tipsShown[tip] = true;
+                return '<span class="test-tip">💡 ' + fmt(tip) + '</span>';
+              })(diagnoseTest(x[1], x[3], printed))) + '</li>';
         });
         hh += '</ul>';
         if (printed) hh += '<p class="code-label">Твой код напечатал</p>' + codeBlock(printed);
@@ -2425,6 +2470,91 @@
     }
     save();
     rerenderInPlace();
+  }
+
+  // Почему тест не прошёл: типичные причины по тому, что получилось и что нужно
+  var KINDS = { int: "целое число", float: "дробное число", str: "строка", list: "список", dict: "словарь", set: "множество",
+    tuple: "кортеж", bool: "True или False", none: "None" };
+
+  function reprKind(r) {
+    if (r === "None") return "none";
+    if (r === "True" || r === "False") return "bool";
+    if (/^-?\d+$/.test(r)) return "int";
+    if (/^-?(\d+\.\d*|\.\d+|\d+)(e[-+]?\d+)?$/.test(r) || r === "inf" || r === "nan") return "float";
+    if (/^['"]/.test(r)) return "str";
+    if (r[0] === "[") return "list";
+    if (r[0] === "(") return "tuple";
+    if (r === "{}" || /^\{.*:/.test(r)) return "dict";
+    if (r[0] === "{" || r === "set()") return "set";
+    return "";
+  }
+
+  function reprItems(r) {
+    var inner = r.slice(1, -1).trim();
+    return inner ? inner.split(/,\s*/).map(function (x) { return x.trim(); }).filter(Boolean) : [];
+  }
+
+  function unquote(r) { return reprKind(r) === "str" ? r.slice(1, -1) : r; }
+
+  function diagnoseTest(got, exp, printed) {
+    var err = /^([A-Z]\w*(Error|Exception))\b/.exec(got);
+    if (err) {
+      var name = err[1];
+      if (name === "TypeError" && /missing \d+ required|takes \d+ positional|positional argument/.test(got))
+        return "Функция принимает не столько аргументов, сколько передаёт проверка. Сравни параметры в `def` с вызовом в проверке.";
+      if (name === "TypeError" && /NoneType/.test(got))
+        return "Где-то вместо значения оказался None. Частая причина — результат `append`, `sort` или функции без `return`: они возвращают None.";
+      if (name === "TypeError") return "Действие с неподходящим типом, например строка плюс число. Посмотри тип значения: `print(type(x))`.";
+      if (name === "NameError") return "Python не знает это имя: опечатка, переменная ещё не создана или забыт `import`.";
+      if (name === "IndexError") return "Номер за пределами списка. Номера идут с 0, последний — `len(x) - 1`. Проверь и пустой список.";
+      if (name === "KeyError") return "Такого ключа нет в словаре. Для подсчёта удобно `d.get(ключ, 0)`.";
+      if (name === "ZeroDivisionError") return "Деление на ноль. Проверь случай, когда список пустой или делитель равен нулю.";
+      if (name === "AttributeError") return "У этого значения нет такого метода или поля. Проверь его тип и не забыт ли `self.`.";
+      if (name === "ValueError") return "Тип подходящий, но значение нет: например, `int(\"x\")` или при распаковке не столько переменных, сколько значений.";
+      if (name === "UnboundLocalError") return "Переменную читают раньше, чем ей что-то присвоено внутри функции.";
+      return "";
+    }
+    var gk = reprKind(got), ek = reprKind(exp);
+    if (gk === "none") {
+      if (printed && printed.indexOf(unquote(exp)) !== -1)
+        return "Функция печатает ответ через `print`, а проверка ждёт `return`. Замени `print(...)` на `return`.";
+      return "Функция ничего не вернула. Нужен `return`, и он должен выполниться: проверь, что он не спрятан в условии или цикле, которые не сработали.";
+    }
+    if (gk === "bool" && ek === "bool") return "Получилось противоположное. Проверь условие: знак сравнения, `not`, особые случаи вроде заглавных букв или пустого значения.";
+    if ((gk === "int" || gk === "float") && (ek === "int" || ek === "float")) {
+      var g = Number(got), e = Number(exp);
+      if (g === e && gk === "float") return "`/` всегда даёт дробное число. Нужно целое — используй `//` или `int()`.";
+      if (g === e) return "Нужно дробное число, а получилось целое. Проверь, не `//` ли вместо `/`.";
+      if (Math.abs(g - e) === 1) return "Ответ отличается на 1. Проверь границы: `range(n)` не включает `n`, а `>` и `>=` отличаются ровно на одно значение.";
+      if (gk === "float" && ek === "float" && Math.abs(g - e) < 0.01) return "Почти совпало. Проверь округление: `round(x, 2)`.";
+      if (e !== 0 && Math.abs(g / e - 100) < 1e-9) return "Получилось в 100 раз больше: возможно, проценты посчитаны дважды.";
+      return "";
+    }
+    if (gk && ek && gk !== ek) {
+      var tip = "Тип не тот: получилось " + KINDS[gk] + ", а нужно " + KINDS[ek] + ".";
+      if (gk === "str" && unquote(got) === exp) tip += " Не превращай результат в строку: верни само значение.";
+      else if (ek === "str") tip += " Возможно, нужно собрать строку, например f-строкой.";
+      return tip;
+    }
+    if (gk === "str" && ek === "str") {
+      var a = unquote(got), b = unquote(exp);
+      if (a.toLowerCase() === b.toLowerCase()) return "Отличаются только заглавные и строчные буквы: проверь `lower()`, `upper()` или `title()`.";
+      if (a.trim() === b.trim()) return "Лишние пробелы в начале или в конце. Поможет `strip()`.";
+      if (a.replace(/\s+/g, "") === b.replace(/\s+/g, "")) return "Отличаются пробелы между частями. Сравни строку посимвольно с нужной.";
+      return "";
+    }
+    if (gk === ek && (gk === "list" || gk === "tuple")) {
+      var gi = reprItems(got), ei = reprItems(exp);
+      if (gi.length === ei.length && gi.slice().sort().join("|") === ei.slice().sort().join("|"))
+        return "Элементы верные, но порядок другой. Проверь сортировку, `key` и `reverse=True`.";
+      if (gi.length !== ei.length) return "Элементов " + gi.length + ", а нужно " + ei.length + ". Проверь условие отбора и границы цикла.";
+    }
+    if (gk === "dict" && ek === "dict") {
+      var keys = function (r) { return reprItems(r).map(function (x) { return x.split(":")[0]; }).sort().join("|"); };
+      if (keys(got) === keys(exp)) return "Ключи верные, а значения нет. Проверь, как считается значение для каждого ключа.";
+      return "Ключи не совпадают. Проверь, что именно становится ключом.";
+    }
+    return "";
   }
 
   function askPy(id) {
@@ -2776,6 +2906,16 @@
     if (act === "notes-download") { downloadNotes(); return; }
     if (act === "goto-sec") { gotoSection(el.dataset.i); return; }
     if (act === "py-predict") { checkPredict(el.dataset.id); return; }
+    if (act === "py-trace" || act === "py-step" || act === "py-trace-close") {
+      var tm = pyMem[el.dataset.id] = pyMem[el.dataset.id] || {};
+      if (act === "py-trace") tm.step = 0;
+      else if (act === "py-step") tm.step = (tm.step || 0) + Number(el.dataset.d);
+      else delete tm.step;
+      rerenderInPlace();
+      var cur = app.querySelector(act === "py-trace-close" ? "[data-act=py-trace]" : "[data-act=py-step][data-d='" + (act === "py-step" ? el.dataset.d : "1") + "']");
+      if (cur && !cur.disabled) cur.focus({ preventScroll: true });
+      return;
+    }
     if (act === "py-show") { showPyAnswer(el.dataset.id); return; }
     if (act === "py-fill") { checkFill(el.dataset.id); return; }
     if (act === "py-write") { checkWrite(el.dataset.id); return; }
@@ -2850,6 +2990,81 @@
   function msg(text) {
     var m = document.getElementById("sync-msg");
     if (m) m.textContent = text;
+  }
+
+  // ---------- символы над клавиатурой телефона ----------
+  // На телефоне до двоеточия, скобок и отступа далеко; ряд кнопок появляется над клавиатурой, пока поле кода в фокусе.
+
+  var SYMS = [["⇥", "    ", "Отступ, 4 пробела"], [":", ":"], ["(", "("], [")", ")"], ["[", "["], ["]", "]"], ["{", "{"], ["}", "}"],
+    ['"', '"'], ["'", "'"], ["=", "="], ["_", "_"], [".", "."], [",", ","], ["#", "#"], ["+", "+"],
+    ["←", -1, "Курсор влево"], ["→", 1, "Курсор вправо"]];
+  var CODE_FIELD = "textarea.code-edit, .fill-input, .py-predict-input";
+  var symField = null, symBar = null;
+  var coarse = window.matchMedia ? window.matchMedia("(pointer: coarse)") : null;
+  var lastTouch = false;                   // планшет с мышью или телефон с клавиатурой: смотрим, чем нажали
+  document.addEventListener("pointerdown", function (e) { lastTouch = e.pointerType === "touch"; }, true);
+
+  function symbarEl() {
+    if (symBar) return symBar;
+    symBar = document.createElement("div");
+    symBar.id = "symbar";
+    symBar.setAttribute("role", "toolbar");
+    symBar.setAttribute("aria-label", "Символы для кода");
+    symBar.hidden = true;
+    symBar.innerHTML = SYMS.map(function (x, i) {
+      return '<button type="button" tabindex="-1" data-sym="' + i + '"' + (x[2] ? ' aria-label="' + x[2] + '"' : '') + '>' + esc(x[0]) + '</button>';
+    }).join('');
+    function press(e) {
+      var b = e.target.closest("button[data-sym]");
+      e.preventDefault();
+      if (!b || !symField || e.type !== "pointerdown") return;
+      var x = SYMS[Number(b.dataset.sym)], f = symField;
+      if (typeof x[1] === "number") {
+        var p = Math.max(0, Math.min(f.value.length, f.selectionStart + x[1]));
+        f.setSelectionRange(p, p);
+      } else {
+        f.setRangeText(x[1], f.selectionStart, f.selectionEnd, "end");
+        f.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      if (document.activeElement !== f) f.focus({ preventScroll: true });
+    }
+    ["pointerdown", "mousedown", "click"].forEach(function (ev) { symBar.addEventListener(ev, press); });
+    document.body.appendChild(symBar);
+    return symBar;
+  }
+
+  function placeSymbar() {
+    if (!symBar || symBar.hidden) return;
+    var vv = window.visualViewport;
+    var bottom = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+    symBar.style.bottom = bottom + "px";
+    if (symField) {
+      var r = symField.getBoundingClientRect(), limit = (vv ? vv.height + vv.offsetTop : window.innerHeight) - symBar.offsetHeight - 8;
+      var caretBottom = Math.min(r.bottom, r.top + 80);
+      if (caretBottom > limit) window.scrollBy(0, caretBottom - limit);
+    }
+  }
+
+  document.addEventListener("focusin", function (e) {
+    var f = e.target;
+    if (!f.matches || !f.matches(CODE_FIELD) || f.disabled || !(lastTouch || (coarse && coarse.matches))) return;
+    symField = f;
+    symbarEl().hidden = false;
+    document.body.classList.add("has-symbar");
+    placeSymbar();
+  });
+  document.addEventListener("focusout", function () {
+    setTimeout(function () {
+      var a = document.activeElement;
+      if (a && a.matches && a.matches(CODE_FIELD)) return;
+      symField = null;
+      if (symBar) symBar.hidden = true;
+      document.body.classList.remove("has-symbar");
+    }, 150);
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", placeSymbar);
+    window.visualViewport.addEventListener("scroll", placeSymbar);
   }
 
   render();

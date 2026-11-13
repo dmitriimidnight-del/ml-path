@@ -620,3 +620,32 @@ textarea.note-input {
 .py-next { width: 100%; margin-top: 4px; }
 .py-daily-head { margin-top: 8px; }
 .drill .hint code { white-space: pre-wrap; }
+
+/* Пошаговое выполнение */
+.py-trace { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.trace-code .tl { display: block; padding: 0 6px; border-radius: 4px; }
+.trace-code code { display: inline-block; min-width: 100%; }
+.trace-code .tl.cur { background: rgba(224, 164, 58, 0.28); box-shadow: inset 4px 0 0 #e0a43a; }
+.trace-code .tl.cur .ln { color: #e0a43a; }
+.trace-code .ln { display: inline-block; width: 2.2em; color: var(--muted); user-select: none; }
+.trace-status { font-weight: 600; margin: 8px 0; }
+.py-trace .code-label + .hint { margin-top: 2px; }
+.trace-vars { border-collapse: collapse; width: 100%; margin: 4px 0 10px; }
+.trace-vars th, .trace-vars td { text-align: left; padding: 4px 6px; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+.trace-vars th { width: 30%; font-weight: 400; }
+.trace-vars tr.changed td { background: rgba(185, 122, 20, 0.12); }
+.trace-new { font-size: 0.8em; color: var(--gold); margin-left: 4px; }
+.trace-nav button[disabled] { opacity: 0.4; }
+
+/* Подсказка под непрошедшей проверкой */
+.test-tip { display: block; margin-top: 4px; padding: 6px 10px; border-left: 4px solid var(--gold); background: var(--bg); border-radius: 6px; }
+
+/* Символы над клавиатурой */
+#symbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: flex; gap: 4px; overflow-x: auto;
+  padding: 6px; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.12);
+  -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+#symbar[hidden] { display: none; }
+#symbar button { flex: 0 0 auto; min-width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+  color: var(--ink); font: 600 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; touch-action: manipulation; }
+#symbar button:active { background: var(--accent-soft); }
+body.has-symbar { padding-bottom: 56px; }

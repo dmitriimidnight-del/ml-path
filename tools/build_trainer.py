@@ -1,4 +1,4 @@
-"""Builds python-trainer.js: the Python trainer (10 topics x 10 tasks) and the error guide.
+"""Builds python-trainer.js: the Python trainer (14 topics, 190 tasks) and the error guide.
 
 Every task is checked by running it in regular Python (the browser uses Pyodide with
 the same Python 3.13):
@@ -17,8 +17,10 @@ import json
 import os
 import pathlib
 import re
+import sys
 import tempfile
 import traceback
+import types
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 GAP = re.compile(r"⟦(.+?)⟧")
@@ -888,6 +890,120 @@ with open("poem2.txt", "w", encoding="utf-8") as f:
 """),
 ])
 
+# ---------- more content (tools/trainer_more.py) ----------
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import trainer_more  # noqa: E402
+
+trainer_more.add_content(topic, P, B, O, F, W)
+_EXTRA = trainer_more.extra_tasks(P, B, O, F, W)
+for _tp in TOPICS:
+    _tp["tasks"].extend(_EXTRA.get(_tp["id"], []))
+ORDER = ["basics", "strings", "formatting", "lists", "conditions", "loops", "zipenum", "dicts", "nested",
+         "functions", "sorting", "comprehensions", "errors", "classes"]
+assert sorted(ORDER) == sorted(tp["id"] for tp in TOPICS)
+TOPICS.sort(key=lambda tp: ORDER.index(tp["id"]))
+
+
+# ---------- step-by-step trace for "read the code" tasks ----------
+
+TRACE_LIMIT = 80
+
+
+def short_value(v):
+    if isinstance(v, types.ModuleType):
+        return None
+    if isinstance(v, (types.FunctionType, types.BuiltinFunctionType, types.MethodType)):
+        return "функция"
+    if isinstance(v, type):
+        return "класс"
+    if type(v).__module__ == "__main__" and hasattr(v, "__dict__"):
+        fields = ", ".join("%s=%r" % kv for kv in vars(v).items())
+        r = "%s(%s)" % (type(v).__name__, fields)
+    else:
+        r = repr(v)
+    return r if len(r) <= 60 else r[:57] + "..."
+
+
+def snapshot(names):
+    out = []
+    for k, v in list(names.items()):
+        if k.startswith("__") or k.startswith("."):
+            continue
+        s = short_value(v)
+        if s is not None:
+            out.append([k, s])
+    return out
+
+
+def scope_name(code):
+    name = code.co_name
+    if name == "<module>":
+        return ""
+    if name == "<lambda>":
+        return "lambda"
+    if name == "<genexpr>":
+        return "генератор"
+    return name
+
+
+CO_OPTIMIZED = 1
+
+
+def trace(code):
+    """Steps of execution: the line about to run, variables before it, output so far.
+    Class bodies are skipped (only def lines run there); a function's return value is its own step."""
+    steps = []
+    out = io.StringIO()
+    g = {"__name__": "__main__"}
+    full = [False]
+    failed = set()
+
+    def add(step):
+        if len(steps) >= TRACE_LIMIT:
+            full[0] = True
+            return
+        steps.append(step)
+
+    def local(frame, event, arg):
+        base = {"line": frame.f_lineno - 1, "scope": scope_name(frame.f_code),
+                "vars": snapshot(frame.f_locals), "out": out.getvalue()}
+        if event == "line":
+            add(base)
+        elif event == "exception":
+            failed.add(id(frame))
+        elif event == "return" and frame.f_code.co_name not in ("<module>", "<genexpr>"):
+            if id(frame) in failed:
+                failed.discard(id(frame))
+            else:
+                base["ret"] = short_value(arg) or "функция"
+                add(base)
+        return local
+
+    def tracer(frame, event, arg):
+        c = frame.f_code
+        if c.co_filename != "<task>":
+            return None
+        if c.co_name != "<module>" and not c.co_flags & CO_OPTIMIZED:
+            return None  # class body
+        return local(frame, event, arg)
+
+    old = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        os.chdir(tmp)
+        try:
+            with contextlib.redirect_stdout(out):
+                sys.settrace(tracer)
+                try:
+                    exec(compile(code, "<task>", "exec"), g)
+                finally:
+                    sys.settrace(None)
+        finally:
+            os.chdir(old)
+    steps.append({"line": -1, "scope": "", "vars": snapshot(g), "out": out.getvalue()})
+    return {"steps": steps, "cut": full[0]}
+
+
 # ---------- error guide ----------
 
 TRACEBACK_EXAMPLE = '''
@@ -990,6 +1106,8 @@ def build_task(t, tid, i):
         out, err = run(t["code"])
         assert err is None, (task["id"], err)
         task["expected"] = norm(out)
+        task["trace"] = trace(t["code"])
+        assert task["trace"]["steps"][-1]["out"] == out, task["id"]
     elif kind == "bug":
         lines = t["code"].split("\n")
         out, err = run(t["code"])
@@ -1007,7 +1125,7 @@ def build_task(t, tid, i):
             task["actual"] = berr
             task["actualError"] = True
         else:
-            task["actual"] = norm(bout)
+            task["actual"] = norm(bout) or "(ничего)"
         del task["code"], task["line"], task["broken"]
     elif kind == "order":
         lines = [l for l in t["code"].split("\n") if l.strip()]
@@ -1056,7 +1174,9 @@ def main():
     topics = []
     counts = {}
     for tp in TOPICS:
-        assert len(tp["tasks"]) == 10, tp["id"]
+        assert len(tp["tasks"]) in (10, 15), (tp["id"], len(tp["tasks"]))
+        kinds = [t["type"] for t in tp["tasks"]]
+        assert all(kinds.count(k) in (2, 3) for k in ("predict", "bug", "order", "fill", "write")), tp["id"]
         tasks = [build_task(t, tp["id"], i) for i, t in enumerate(tp["tasks"])]
         for t in tasks:
             counts[t["type"]] = counts.get(t["type"], 0) + 1
