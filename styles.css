@@ -358,3 +358,61 @@ pre code { background: none; padding: 0; font-size: inherit; color: inherit; ove
 }
 .pager span { flex: 1 1 0; }
 .pager-next { text-align: right; }
+
+/* ---------- запуск кода ---------- */
+.runbox { margin: 14px 0; }
+.runbox pre { margin: 0; }
+.code-edit {
+  display: block;
+  width: 100%;
+  font: 0.85rem/1.55 var(--mono);
+  background: var(--code-bg);
+  color: var(--code-ink);
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  padding: 14px 16px;
+  resize: vertical;
+  tab-size: 4;
+  white-space: pre;
+  overflow-x: auto;
+}
+.code-edit::placeholder { color: var(--muted); }
+.run-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.run-btn {
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.runbox.busy .run-btn { opacity: 0.6; }
+.ghost.small { min-height: 44px; padding: 6px 14px; font-size: 0.95rem; }
+.run-out {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px dashed var(--line);
+  background: var(--bg);
+}
+.run-out .code-label { margin: 10px 0 6px; }
+.run-stdout {
+  margin: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+  font: 0.85rem/1.5 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.run-img { display: block; max-width: 100%; height: auto; margin-top: 10px; border-radius: 8px; background: #fff; }
+.run-status { margin: 0; color: var(--muted); }
+.run-error { margin-top: 8px; color: var(--ink); border-left: 3px solid var(--bad); padding-left: 10px; }
+.run-error p { margin: 0 0 6px; }
+.run-error strong { color: var(--bad); }
+.run-ok { margin: 0 0 8px; color: var(--ok); font-weight: 600; }
+.run-diff { margin: 0 0 8px; color: var(--gold); font-weight: 600; }
+.user-box { margin-top: 10px; }
+
+[hidden] { display: none !important; }
