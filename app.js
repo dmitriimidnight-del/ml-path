@@ -9,7 +9,7 @@
   // ---------- состояние ----------
 
   function emptyState() {
-    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {}, diag: {}, log: {}, active: {}, termsAdded: {}, drills: {}, exams: {}, repoCheck: {} };
+    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {}, diag: {}, log: {}, active: {}, termsAdded: {}, drills: {}, exams: {}, repoCheck: {}, notes: {}, interview: {} };
   }
 
   function load() {
@@ -20,9 +20,14 @@
     return memory || emptyState();
   }
 
+  // синхронизация (настройки и токен хранятся отдельно и в код прогресса не попадают)
+  var SYNC_KEY = "mlpath.sync", SYNC_FILE = "progress.json";
+  var syncTimer = null, syncing = false, applyingRemote = false, changeCount = 0, lastPull = 0;
+
   function save() {
     memory = state;
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* остаёмся в памяти */ }
+    if (!applyingRemote) markDirty();
   }
 
   var state = load();
@@ -214,12 +219,15 @@
     });
     h += '</ol>';
 
+    var nNotes = Object.keys(state.notes).filter(function (k) { return state.notes[k].text.trim(); }).length;
     h += '<nav class="tools"><a href="#glossary">Словарь терминов</a><a href="#diagnostic">' +
-      (state.diag.done ? 'Диагностика: ' + diagScore().right + ' из ' + diagScore().total : 'Диагностика по Python') + '</a></nav>';
+      (state.diag.done ? 'Диагностика: ' + diagScore().right + ' из ' + diagScore().total : 'Диагностика по Python') + '</a>' +
+      '<a href="#interview">Тренажёр собеседования</a><a href="#notes">Мои заметки' + (nNotes ? ' · ' + nNotes : '') + '</a></nav>';
 
     h += '<section class="offline" id="offline-panel" aria-live="polite"></section>';
 
-    h += '<details class="sync"><summary>Перенести прогресс на другое устройство</summary>';
+    h += syncPanelHtml();
+    h += '<details class="sync"><summary>Перенести прогресс кодом, без GitHub</summary>';
     h += '<p>Прогресс хранится в браузере на этом устройстве. Чтобы продолжить на другом, скопируй код здесь и вставь его там.</p>';
     h += '<textarea id="sync-box" rows="3" spellcheck="false" aria-label="Код прогресса"></textarea>';
     h += '<div class="row"><button type="button" data-act="export">Показать мой код</button>';
@@ -1425,6 +1433,432 @@
     }
   }
 
+  // ---------- заметки ----------
+
+  function noteHtml(p, t) {
+    var key = p.id + "." + t.id;
+    var n = state.notes[key];
+    return '<section class="panel my-note"><h2>Мой конспект</h2>' +
+      '<p class="hint">Перескажи урок своими словами: так он запоминается намного лучше. Сохраняется само.</p>' +
+      '<textarea class="note-input" rows="5" data-note="' + key + '" placeholder="Главная мысль урока, пример, что было непонятно…" aria-label="Мой конспект">' +
+      esc(n ? n.text : '') + '</textarea>' +
+      '<p class="hint note-saved" aria-live="polite">' + (n && n.text.trim() ? 'Сохранено' : '') + '</p></section>';
+  }
+
+  var noteTimer = null;
+  app.addEventListener("input", function (e) {
+    var el = e.target;
+    if (el.dataset.note !== undefined) {
+      var key = el.dataset.note;
+      if (el.value.trim()) state.notes[key] = { text: el.value, at: Date.now() };
+      else state.notes[key] = { text: "", at: Date.now() };
+    } else if (el.dataset.ivAnswer !== undefined) {
+      var it = ivEntry(el.dataset.ivAnswer);
+      it.answer = el.value;
+      it.at = Date.now();
+    } else return;
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(function () {
+      save();
+      var mark = el.closest(".panel") && el.closest(".panel").querySelector(".note-saved");
+      if (mark) mark.textContent = el.value.trim() ? "Сохранено" : "";
+    }, 400);
+  });
+
+  function lessonOrder() {
+    var list = [];
+    PATH.projects.forEach(function (p) { (p.theory || []).forEach(function (t) { list.push({ p: p, t: t }); }); });
+    return list;
+  }
+
+  function viewNotes() {
+    var h = '<a class="back" href="#">← Весь путь</a>';
+    h += '<header class="phead"><p class="eyebrow">Заметки</p><h1>Мой конспект</h1>';
+    var items = lessonOrder().filter(function (x) { var n = state.notes[x.p.id + "." + x.t.id]; return n && n.text.trim(); });
+    var answers = window.INTERVIEW.filter(function (q) { var a = state.interview[q.id]; return a && a.answer && a.answer.trim(); });
+    if (!items.length && !answers.length) {
+      h += '<p class="lead">Пока пусто. Под каждым уроком есть поле «Мой конспект»: перескажи урок своими словами, и заметка появится здесь.</p></header>';
+      app.innerHTML = h;
+      return;
+    }
+    h += '<p class="lead">Заметки к ' + items.length + ' ' + plural(items.length, "уроку", "урокам", "урокам") +
+      (answers.length ? ' и ответы на ' + answers.length + ' ' + plural(answers.length, "вопрос", "вопроса", "вопросов") + ' собеседования' : '') + '.</p></header>';
+    h += '<button type="button" class="run-btn" data-act="notes-download">Скачать всё одним файлом (.md)</button>';
+    h += '<p class="hint">Файл в формате Markdown: открывается в любом текстовом редакторе, VS Code и на GitHub.</p>';
+    var lastP = null;
+    items.forEach(function (x) {
+      if (x.p !== lastP) { h += '<h2 class="notes-project">' + esc(x.p.title) + '</h2>'; lastP = x.p; }
+      h += '<section class="panel"><h3><a class="link" href="#' + x.p.id + '/theory/' + x.t.id + '">' + esc(x.t.title) + '</a></h3>' +
+        '<p class="note-text">' + esc(state.notes[x.p.id + "." + x.t.id].text) + '</p></section>';
+    });
+    if (answers.length) {
+      h += '<h2 class="notes-project">Ответы для собеседования</h2>';
+      answers.forEach(function (q) {
+        h += '<section class="panel"><h3><a class="link" href="#interview/' + q.id + '">' + esc(q.q) + '</a></h3>' +
+          '<p class="note-text">' + esc(state.interview[q.id].answer) + '</p></section>';
+      });
+    }
+    app.innerHTML = h;
+  }
+
+  function notesMarkdown() {
+    var md = "# ML Path — мой конспект\n\nВыгружено " + dayString(0) + "\n";
+    var lastP = null;
+    lessonOrder().forEach(function (x) {
+      var n = state.notes[x.p.id + "." + x.t.id];
+      if (!n || !n.text.trim()) return;
+      if (x.p !== lastP) { md += "\n## " + x.p.title + "\n"; lastP = x.p; }
+      md += "\n### " + x.t.title + "\n\n" + n.text.trim() + "\n";
+    });
+    var answers = window.INTERVIEW.filter(function (q) { var a = state.interview[q.id]; return a && a.answer && a.answer.trim(); });
+    if (answers.length) {
+      md += "\n## Ответы для собеседования\n";
+      answers.forEach(function (q) { md += "\n### " + q.q + "\n\n" + state.interview[q.id].answer.trim() + "\n"; });
+    }
+    return md;
+  }
+
+  function downloadNotes() {
+    var blob = new Blob([notesMarkdown()], { type: "text/markdown;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "ml-path-notes-" + dayString(0) + ".md";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  // ---------- тренажёр собеседования ----------
+
+  function ivEntry(id) { return (state.interview[id] = state.interview[id] || {}); }
+
+  function ivDone(q) { var a = state.interview[q.id]; return !!(a && a.revealed); }
+
+  function viewInterview(id) {
+    var all = window.INTERVIEW;
+    var q = all.filter(function (x) { return x.id === id; })[0];
+    if (q) { viewInterviewQuestion(q); return; }
+    var h = '<a class="back" href="#">← Весь путь</a>';
+    var done = all.filter(ivDone).length;
+    h += '<header class="phead"><p class="eyebrow">Тренажёр собеседования</p><h1>Расскажи о своих проектах</h1>';
+    h += '<p class="lead">Вопросы, которые чаще всего задают о таких проектах. Ответь сначала сам — вслух и письменно, лучше по-английски. Потом сравни с тем, что должно быть в ответе.</p>';
+    h += bar(Math.round(done / all.length * 100), 'Пройдено вопросов') + '<p class="hint">Пройдено ' + done + ' из ' + all.length + '</p></header>';
+    h += '<button type="button" class="run-btn" data-act="iv-random" data-pid="">Случайный вопрос</button>';
+    realProjects().forEach(function (p) {
+      var qs = all.filter(function (x) { return x.pid === p.id; });
+      h += '<section class="panel"><h2>' + esc(p.title) + '</h2><ul class="iv-list">';
+      qs.forEach(function (x) {
+        var a = state.interview[x.id];
+        var mark = '';
+        if (a && a.revealed) mark = '<span class="solved">' + (a.got ? a.got.length : 0) + ' из ' + x.points.length + '</span>';
+        h += '<li><a href="#interview/' + x.id + '"><span lang="en">' + esc(x.q) + '</span>' + mark + '</a></li>';
+      });
+      h += '</ul></section>';
+    });
+    app.innerHTML = h;
+  }
+
+  function randomInterview() {
+    var all = window.INTERVIEW;
+    var fresh = all.filter(function (q) { return !ivDone(q); });
+    var pool = fresh.length ? fresh : all;
+    location.hash = "#interview/" + pool[Math.floor(Math.random() * pool.length)].id;
+  }
+
+  function viewInterviewQuestion(q) {
+    var p = project(q.pid);
+    var a = state.interview[q.id] || {};
+    var lp = q.lesson.split(".");
+    var lessonP = project(lp[0]);
+    var lessonT = lessonP.theory.filter(function (t) { return t.id === lp[1]; })[0];
+    var h = '<a class="back" href="#interview">← Все вопросы</a>';
+    h += '<header class="phead"><p class="eyebrow">' + esc(p.title) + '</p><h1 lang="en" class="iv-q">' + esc(q.q) + '</h1>';
+    h += '<p class="lead">' + esc(q.ru) + '</p></header>';
+    h += '<section class="panel"><h2>Твой ответ</h2>';
+    h += '<p class="hint">Сначала скажи ответ вслух, как на собеседовании, потом запиши главное. Сохраняется само.</p>';
+    h += '<textarea class="note-input" rows="6" data-iv-answer="' + q.id + '" lang="en" placeholder="In this project I…" aria-label="Твой ответ">' + esc(a.answer || '') + '</textarea>';
+    if (!a.revealed) {
+      h += '<button type="button" class="run-btn" data-act="iv-reveal" data-id="' + q.id + '">Что должно быть в ответе</button>';
+    } else {
+      h += '<h3>Что должно быть в ответе</h3><p class="hint">Отметь, что ты назвал.</p>';
+      q.points.forEach(function (pt, i) {
+        var on = a.got && a.got.indexOf(i) !== -1;
+        h += '<label class="check"><input type="checkbox" data-iv-point="' + q.id + '" data-i="' + i + '"' + (on ? ' checked' : '') + '> <span>' + fmt(pt) + '</span></label>';
+      });
+      h += '<p class="hint">Подробнее в уроке <a class="link" href="#' + lessonP.id + '/theory/' + lessonT.id + '">' + esc(lessonT.title) + '</a>.</p>';
+    }
+    h += '<div class="row"><button type="button" class="ghost small" data-act="iv-claude" data-id="' + q.id + '">Попросить Claude оценить ответ</button></div>';
+    h += '</section>';
+    var all = window.INTERVIEW, i = all.indexOf(q);
+    var next = all[i + 1];
+    var prev = all[i - 1];
+    h += '<nav class="pager">' + (prev ? '<a href="#interview/' + prev.id + '">← Предыдущий</a>' : '<span></span>') +
+      '<a class="pager-next" href="#interview' + (next ? '/' + next.id : '') + '">' + (next ? 'Следующий вопрос →' : 'Ко всем вопросам →') + '</a></nav>';
+    app.innerHTML = h;
+  }
+
+  app.addEventListener("change", function (e) {
+    var el = e.target;
+    if (el.dataset.ivPoint === undefined) return;
+    var it = ivEntry(el.dataset.ivPoint);
+    var i = Number(el.dataset.i);
+    it.got = (it.got || []).filter(function (x) { return x !== i; });
+    if (el.checked) it.got.push(i);
+    it.at = Date.now();
+    markActive();
+    save();
+  });
+
+  function askClaudeInterview(id) {
+    var q = window.INTERVIEW.filter(function (x) { return x.id === id; })[0];
+    var a = state.interview[id] || {};
+    var answer = (a.answer || "").trim();
+    openClaude("Я готовлюсь к собеседованию на позицию junior ML engineer на международном рынке. " +
+      "Вопрос интервьюера: \"" + q.q + "\"\n\n" +
+      (answer ? "Мой ответ:\n" + answer + "\n\nОцени ответ как интервьюер: что хорошо, чего не хватает, что звучит неуверенно. " +
+        "Исправь ошибки в английском и предложи улучшенную версию на английском, примерно на две минуты речи. Объяснения дай по-русски."
+        : "Я ещё не ответил. Задай мне этот вопрос как интервьюер, дождись моего ответа на английском, потом оцени его и исправь английский. Объяснения по-русски."));
+  }
+
+  // ---------- синхронизация через приватный репозиторий GitHub ----------
+
+  function syncCfg() { try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch (e) { return {}; } }
+  function setSyncCfg(c) { try { localStorage.setItem(SYNC_KEY, JSON.stringify(c)); } catch (e) { /* нет хранилища */ } }
+
+  function markDirty() {
+    var cfg = syncCfg();
+    if (!cfg.token) return;
+    changeCount++;
+    if (!cfg.dirty) { cfg.dirty = true; setSyncCfg(cfg); }
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () { syncNow(false); }, 15000);
+  }
+
+  function hasProgress(s) {
+    return ["tasks", "criteria", "quiz", "review", "notes", "interview", "drills", "exams", "log"].some(function (k) {
+      return s[k] && Object.keys(s[k]).length > 0;
+    }) || !!(s.diag && s.diag.answers);
+  }
+
+  function b64encode(text) { return btoa(unescape(encodeURIComponent(text))); }
+  function b64decode(b64) { return decodeURIComponent(escape(atob(b64.replace(/\n/g, "")))); }
+
+  function SyncError(code) { this.code = code; }
+
+  async function gh(cfg, method, path, body) {
+    var r = await fetch("https://api.github.com/repos/" + cfg.repo + path, {
+      method: method, cache: "no-store",
+      headers: { Authorization: "Bearer " + cfg.token, Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (r.status === 401) throw new SyncError("token");
+    if (r.status === 403 || r.status === 429) throw new SyncError("forbidden");
+    return r;
+  }
+
+  async function pullRemote(cfg) {
+    var r = await gh(cfg, "GET", "/contents/" + SYNC_FILE);
+    if (r.status === 404) return null;
+    if (!r.ok) throw new SyncError("http");
+    var j = await r.json();
+    var data = null;
+    try { data = JSON.parse(b64decode(j.content || "")); } catch (e) { data = null; }
+    return { sha: j.sha, state: data && data.state };
+  }
+
+  async function pushRemote(cfg, sha) {
+    var r = await gh(cfg, "PUT", "/contents/" + SYNC_FILE, {
+      message: "Sync progress " + new Date().toISOString().slice(0, 16).replace("T", " "),
+      content: b64encode(JSON.stringify({ app: "ml-path", savedAt: new Date().toISOString(), state: state })),
+      sha: sha || undefined
+    });
+    if (r.status === 409 || r.status === 422) return null;      // файл успел измениться на другом устройстве
+    if (r.status === 404) throw new SyncError("norepo");
+    if (!r.ok) throw new SyncError("http");
+    return (await r.json()).content.sha;
+  }
+
+  function newer(a, b) { return (a && a.at || 0) >= (b && b.at || 0) ? a : b; }
+
+  // Слияние, когда прогресс менялся на обоих устройствах: ничего сделанного не теряем
+  function mergeStates(a, b) {
+    a = Object.assign(emptyState(), a); b = Object.assign(emptyState(), b);
+    var m = Object.assign(emptyState(), b, a);
+    ["tasks", "criteria", "drills", "termsAdded", "active", "quiz", "repo", "repoCheck", "settings"].forEach(function (k) {
+      m[k] = Object.assign({}, b[k], a[k]);
+    });
+    m.log = Object.assign({}, b.log);
+    Object.keys(a.log).forEach(function (d) { m.log[d] = Math.max(a.log[d], b.log[d] || 0); });
+    m.review = Object.assign({}, b.review);
+    Object.keys(a.review).forEach(function (k) {
+      var x = a.review[k], y = b.review[k];
+      m.review[k] = !y || x.box > y.box || (x.box === y.box && x.due >= y.due) ? x : y;
+    });
+    var cnt = function (d) { return d && d.answers ? Object.keys(d.answers).length : 0; };
+    m.diag = (a.diag.done && !b.diag.done) || (!!a.diag.done === !!b.diag.done && cnt(a.diag) >= cnt(b.diag)) ? a.diag : b.diag;
+    m.exams = Object.assign({}, b.exams);
+    Object.keys(a.exams).forEach(function (pid) {
+      var x = a.exams[pid], y = b.exams[pid];
+      if (!y) { m.exams[pid] = x; return; }
+      var pick = Object.assign({}, (x.attempt || 0) >= (y.attempt || 0) ? x : y);
+      pick.passed = !!(x.passed || y.passed);
+      pick.best = Math.max(x.best || 0, y.best || 0);
+      m.exams[pid] = pick;
+    });
+    ["notes", "interview"].forEach(function (k) {
+      m[k] = Object.assign({}, b[k]);
+      Object.keys(a[k]).forEach(function (id) { m[k][id] = newer(a[k][id], b[k][id]); });
+    });
+    return m;
+  }
+
+  function applyRemote(next) {
+    applyingRemote = true;
+    state = Object.assign(emptyState(), next);
+    save();
+    applyingRemote = false;
+    var f = document.activeElement;
+    if (f && /^(TEXTAREA|INPUT)$/.test(f.tagName) && app.contains(f)) return;   // не мешать набору текста
+    rerenderInPlace();
+  }
+
+  async function syncNow(manual) {
+    var cfg = syncCfg();
+    if (!cfg.token || !cfg.repo || syncing) return;
+    if (!navigator.onLine) { if (manual) { cfg.error = "Нет интернета. Синхронизация пройдёт, когда он появится."; setSyncCfg(cfg); syncStatus(); } return; }
+    syncing = true;
+    clearTimeout(syncTimer);
+    syncStatus("Синхронизация…");
+    try {
+      for (var attempt = 0; attempt < 3; attempt++) {
+        cfg = syncCfg();
+        var remote = await pullRemote(cfg);
+        lastPull = Date.now();
+        cfg = syncCfg();
+        if (remote && remote.sha !== cfg.sha && remote.state) {
+          applyRemote(cfg.dirty ? mergeStates(state, remote.state) : remote.state);
+        }
+        if (cfg.dirty || !remote) {
+          var pushedAt = changeCount;
+          var sha = await pushRemote(cfg, remote && remote.sha);
+          if (!sha) continue;
+          cfg = syncCfg();
+          cfg.sha = sha;
+          cfg.dirty = changeCount !== pushedAt;
+        } else {
+          cfg.sha = remote.sha;
+        }
+        cfg.last = new Date().toISOString();
+        cfg.error = "";
+        setSyncCfg(cfg);
+        break;
+      }
+    } catch (e) {
+      cfg = syncCfg();
+      cfg.error = ({
+        token: "GitHub не принял токен. Возможно, у него истёк срок — создай новый.",
+        forbidden: "У токена нет права записи в этот репозиторий. Проверь, что выбран нужный репозиторий и Contents: Read and write.",
+        norepo: "Репозиторий не найден. Проверь название и что токен выдан именно на него."
+      })[e.code] || "Не получилось связаться с GitHub. Попробую позже.";
+      setSyncCfg(cfg);
+    }
+    syncing = false;
+    syncStatus();
+    if (syncCfg().dirty && !syncCfg().error) { clearTimeout(syncTimer); syncTimer = setTimeout(function () { syncNow(false); }, 15000); }
+  }
+
+  function syncStateText() {
+    var cfg = syncCfg();
+    if (cfg.error) return '<span class="run-diff">' + esc(cfg.error) + '</span>';
+    if (!cfg.last) return 'Ещё не синхронизировано.';
+    var d = new Date(cfg.last);
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    return 'Последняя синхронизация: ' + (d.toDateString() === new Date().toDateString() ? 'сегодня' : d.toLocaleDateString('ru-RU')) +
+      ' в ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + (cfg.dirty ? '. Есть новые изменения, скоро отправлю.' : '.');
+  }
+
+  function syncStatus(text) {
+    var el = document.getElementById("sync-status");
+    if (el) el.innerHTML = text ? esc(text) : syncStateText();
+  }
+
+  function guessOwner() {
+    var m = /^([a-z0-9-]+)\.github\.io$/i.exec(location.hostname);
+    return m ? m[1] : "";
+  }
+
+  function syncPanelHtml() {
+    var cfg = syncCfg();
+    var h = '<details class="sync"' + (cfg.token && cfg.error ? ' open' : '') + '><summary>' +
+      (cfg.token ? 'Синхронизация включена' : 'Синхронизация телефона и компьютера') + '</summary>';
+    if (cfg.token) {
+      h += '<p>Прогресс, заметки и ответы сохраняются в приватном репозитории <strong>' + esc(cfg.repo) + '</strong> и сами подтягиваются на другом устройстве.</p>';
+      h += '<p id="sync-status" class="hint" role="status">' + syncStateText() + '</p>';
+      h += '<div class="row"><button type="button" data-act="sync-now">Синхронизировать сейчас</button>' +
+        '<button type="button" data-act="sync-off">Отключить на этом устройстве</button></div>';
+      return h + '</details>';
+    }
+    var owner = guessOwner();
+    var tokenUrl = "https://github.com/settings/personal-access-tokens/new?name=" + encodeURIComponent("ml-path sync") +
+      "&description=" + encodeURIComponent("Progress sync for the ml-path learning app") + "&expires_in=366&contents=write";
+    h += '<p>Один раз на каждом устройстве, минут пять. Прогресс будет храниться в твоём приватном репозитории на GitHub.</p><ol class="sync-steps">';
+    h += '<li>Создай <strong>приватный</strong> репозиторий <code>ml-path-progress</code>: <a class="link" target="_blank" rel="noopener" href="https://github.com/new?name=ml-path-progress&visibility=private&description=' +
+      encodeURIComponent("Progress of the ml-path learning app") + '">открыть форму</a>. Нажми Create repository.</li>';
+    h += '<li>Создай токен доступа: <a class="link" target="_blank" rel="noopener" href="' + tokenUrl + '">открыть форму</a>. ' +
+      'Название и права уже заполнены. В разделе Repository access выбери <strong>Only select repositories</strong> и отметь <code>ml-path-progress</code>. ' +
+      'Проверь, что в Permissions стоит Contents: Read and write. Нажми Generate token и скопируй его.</li>';
+    h += '<li>Вставь сюда и нажми «Подключить».</li></ol>';
+    h += '<label class="field">Репозиторий<input type="text" id="sync-repo"' + EDIT_ATTRS + ' value="' + esc(owner ? owner + '/ml-path-progress' : '') + '" placeholder="логин/ml-path-progress"></label>';
+    h += '<label class="field">Токен<input type="password" id="sync-token"' + EDIT_ATTRS + ' placeholder="github_pat_…"></label>';
+    h += '<button type="button" data-act="sync-connect">Подключить</button>';
+    h += '<p id="sync-status" class="hint" role="status"></p>';
+    h += '<p class="hint">Токен хранится только в браузере этого устройства и даёт доступ к одному репозиторию. ' +
+      'На телефоне удобнее создать второй токен той же ссылкой, чем переписывать первый.</p>';
+    return h + '</details>';
+  }
+
+  async function connectSync() {
+    var repo = document.getElementById("sync-repo").value.trim()
+      .replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/, "").replace(/\/+$/, "");
+    var token = document.getElementById("sync-token").value.trim();
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) { syncStatus("Репозиторий нужен в виде логин/название."); return; }
+    if (!token) { syncStatus("Вставь токен."); return; }
+    if (!navigator.onLine) { syncStatus("Для подключения нужен интернет."); return; }
+    syncStatus("Проверяю…");
+    var cfg = { repo: repo, token: token };
+    try {
+      var r = await gh(cfg, "GET", "");
+      if (r.status === 404) { syncStatus("Репозиторий не найден. Проверь название и что токен выдан на этот репозиторий."); return; }
+      if (!r.ok) throw new SyncError("http");
+      var info = await r.json();
+      if (!info.private) { syncStatus("Этот репозиторий публичный: прогресс и заметки увидят все. Сделай его приватным в Settings репозитория или создай новый приватный."); return; }
+    } catch (e) {
+      syncStatus(e.code === "token" ? "GitHub не принял токен. Скопируй его заново целиком." :
+        e.code === "forbidden" ? "У токена нет доступа к этому репозиторию." : "Не получилось связаться с GitHub. Попробуй ещё раз.");
+      return;
+    }
+    cfg.dirty = hasProgress(state);     // прогресс этого устройства сольётся с тем, что уже лежит в репозитории
+    setSyncCfg(cfg);
+    await syncNow(true);
+    rerenderInPlace();
+    var d = document.querySelector(".sync"); if (d) d.open = true;
+  }
+
+  function disconnectSync() {
+    try { localStorage.removeItem(SYNC_KEY); } catch (e) { /* ничего */ }
+    clearTimeout(syncTimer);
+    rerenderInPlace();
+  }
+
+  // Подтягиваем изменения при открытии и при возвращении в приложение, отправляем при уходе
+  document.addEventListener("visibilitychange", function () {
+    if (!syncCfg().token) return;
+    if (document.visibilityState === "hidden") { if (syncCfg().dirty) syncNow(false); }
+    else if (Date.now() - lastPull > 15000) syncNow(false);
+  });
+  window.addEventListener("online", function () { if (syncCfg().token) syncNow(false); });
+
   function viewLesson(p, t) {
     var idx = p.theory.indexOf(t);
     var backHref = '#' + p.id + (isIntro(p) ? '' : '/theory');
@@ -1490,6 +1924,7 @@
 
     h += drillsHtml(p, t);
     h += quizHtml(p, t);
+    h += noteHtml(p, t);
     h += askHtml();
 
     if (t.sources && t.sources.length) {
@@ -1594,6 +2029,8 @@
     if (a[0] === "review") { viewReview(); return; }
     if (a[0] === "glossary") { viewGlossary(); return; }
     if (a[0] === "diagnostic") { viewDiagnostic(); return; }
+    if (a[0] === "notes") { viewNotes(); return; }
+    if (a[0] === "interview") { viewInterview(a[1]); return; }
     if (!p) { viewHome(); return; }
     if (a[1] === "theory" && a[2] && hasLessons(p)) {
       var t = p.theory.filter(function (x) { return x.id === a[2]; })[0];
@@ -1679,6 +2116,13 @@
     if (act === "exam-answer") { answerExam(el.dataset.pid, Number(el.dataset.n), Number(el.dataset.i)); return; }
     if (act === "exam-next") { examNext(el.dataset.pid); return; }
     if (act === "repo-check") { checkRepo(project(el.dataset.pid)); return; }
+    if (act === "notes-download") { downloadNotes(); return; }
+    if (act === "iv-reveal") { ivEntry(el.dataset.id).revealed = true; save(); rerenderInPlace(); return; }
+    if (act === "iv-claude") { askClaudeInterview(el.dataset.id); return; }
+    if (act === "iv-random") { randomInterview(el.dataset.pid); return; }
+    if (act === "sync-connect") { connectSync(); return; }
+    if (act === "sync-now") { syncNow(true); return; }
+    if (act === "sync-off") { disconnectSync(); return; }
     if (act === "log-time") { logTime(Number(el.dataset.min)); return; }
     if (act === "add-terms") { addTerms(project(el.dataset.p), el.dataset.t, 0); save(); rerenderInPlace(); return; }
     if (act === "term-reveal") { reviewShown = { key: el.dataset.key, revealed: true }; render(); return; }
@@ -1741,4 +2185,5 @@
   }
 
   render();
+  if (syncCfg().token) syncNow(false);
 })();
