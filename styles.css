@@ -416,3 +416,44 @@ pre code { background: none; padding: 0; font-size: inherit; color: inherit; ove
 .user-box { margin-top: 10px; }
 
 [hidden] { display: none !important; }
+
+/* ---------- предскажи результат ---------- */
+.toggle { display: flex; gap: 10px; align-items: center; margin-top: 14px; color: var(--muted); font-size: 0.95rem; min-height: 44px; cursor: pointer; }
+.toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
+.predict { margin: 14px 0; }
+.predict .code-label { margin: 0 0 8px; }
+.predict-input {
+  display: block; width: 100%; margin: 0 0 8px;
+  font: 0.85rem/1.5 var(--mono); color: var(--ink);
+  background: var(--bg); border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px;
+}
+.predict pre { margin: 0 0 8px; }
+.predict-mine { padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; }
+
+/* ---------- живые графики ---------- */
+.widget { margin: 16px 0 4px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.widget .code-label { margin: 0 0 8px; }
+.w-svg { display: block; width: 100%; height: auto; }
+.w-axis { stroke: var(--muted); stroke-width: 1; }
+.w-grid { stroke: var(--line); stroke-dasharray: 4 4; }
+.w-curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.w-path { fill: none; stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.w-dot { fill: var(--gold); }
+.w-dot-last { fill: var(--bad); }
+.w-text { fill: var(--muted); font: 11px var(--sans); }
+.w-bar { fill: var(--accent); }
+.w-d { fill: var(--accent); }
+.w-w { fill: var(--gold); }
+.w-thr { stroke: var(--bad); stroke-width: 2; }
+.w-control { display: block; margin: 10px 0; font-size: 0.95rem; }
+.w-control span { display: block; margin-bottom: 4px; }
+.w-control output { font-weight: 600; font-variant-numeric: tabular-nums; }
+.w-control input { width: 100%; height: 32px; accent-color: var(--accent); }
+.w-msg { margin: 8px 0 10px; font-size: 0.95rem; }
+.w-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.w-table th, .w-table td { border: 1px solid var(--line); padding: 6px 8px; text-align: center; }
+.w-table th { font-weight: 500; color: var(--muted); }
+
+/* ---------- повторение ---------- */
+.review-card { background: var(--gold); color: #1e1c17; }
+.review-later { margin: -12px 0 24px; }

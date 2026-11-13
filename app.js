@@ -9,7 +9,7 @@
   // ---------- состояние ----------
 
   function emptyState() {
-    return { tasks: {}, criteria: {}, quiz: {}, repo: {} };
+    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {} };
   }
 
   function load() {
@@ -121,6 +121,8 @@
       h += '<span class="next-meta">' + esc(next.meta) + '</span>';
       h += '</a>';
     }
+
+    h += reviewCard();
 
     h += '<ol class="ladder">';
     PATH.projects.forEach(function (p) {
@@ -501,6 +503,207 @@
     }
   });
 
+  // ---------- предскажи результат ----------
+
+  var predictMem = {};
+
+  function predictOn() { return state.settings.predict !== false; }
+
+  function predictBlock(id, out) {
+    var m = predictMem[id] || {};
+    var h = '<div class="predict" data-id="' + esc(id) + '"><p class="code-label">Что напечатает программа?</p>';
+    if (!m.revealed) {
+      h += '<textarea class="predict-input" rows="2"' + EDIT_ATTRS +
+        ' placeholder="Подумай и запиши свой прогноз. Можно пропустить." aria-label="Твой прогноз">' + esc(m.pred || '') + '</textarea>';
+      h += '<button type="button" class="ghost small" data-act="reveal">Показать ответ</button>';
+    } else {
+      h += '<pre><code>' + esc(out) + '</code></pre>';
+      if (m.pred && m.pred.trim()) {
+        if (normalizeOut(m.pred) === normalizeOut(out)) {
+          h += '<p class="run-ok">Точно угадал.</p>';
+        } else {
+          h += '<p class="run-diff">Сравни со своим прогнозом: что отличается и почему?</p>';
+          h += '<pre class="run-stdout predict-mine">' + esc(m.pred) + '</pre>';
+        }
+      }
+    }
+    return h + '</div>';
+  }
+
+  function revealPrediction(box) {
+    var id = box.dataset.id;
+    var m = predictMem[id] = predictMem[id] || {};
+    var ta = box.querySelector(".predict-input");
+    if (ta) m.pred = ta.value;
+    m.revealed = true;
+    rerenderInPlace();
+  }
+
+  // ---------- живые графики ----------
+
+  var widgetMem = {};
+
+  function widgetHtml(id, name) {
+    var def = window.Widgets.defs[name];
+    var v = widgetMem[id] = widgetMem[id] || window.Widgets.defaults(name);
+    var res = window.Widgets.draw(name, v);
+    var h = '<div class="widget" data-id="' + esc(id) + '" data-widget="' + name + '">';
+    h += '<p class="code-label">' + esc(def.title) + '</p>';
+    h += '<div class="w-plot">' + res.svg + '</div>';
+    def.controls.forEach(function (c) {
+      h += '<label class="w-control"><span>' + esc(c.label) + ': <output>' + v[c.key] + '</output></span>' +
+        '<input type="range" data-key="' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + c.step +
+        '" value="' + v[c.key] + '"></label>';
+    });
+    h += '<p class="w-msg" aria-live="polite">' + esc(res.text) + '</p>';
+    h += '<button type="button" class="ghost small" data-act="widget-reset">Вернуть как в уроке</button>';
+    return h + '</div>';
+  }
+
+  function updateWidget(box) {
+    var id = box.dataset.id, name = box.dataset.widget;
+    var v = widgetMem[id];
+    box.querySelectorAll('input[type="range"]').forEach(function (inp) {
+      v[inp.dataset.key] = Number(inp.value);
+      inp.closest(".w-control").querySelector("output").textContent = inp.value;
+    });
+    var res = window.Widgets.draw(name, v);
+    box.querySelector(".w-plot").innerHTML = res.svg;
+    box.querySelector(".w-msg").textContent = res.text;
+  }
+
+  app.addEventListener("input", function (e) {
+    var el = e.target;
+    if (el.type === "range" && el.closest(".widget")) updateWidget(el.closest(".widget"));
+    if (el.classList && el.classList.contains("predict-input")) {
+      var id = el.closest(".predict").dataset.id;
+      (predictMem[id] = predictMem[id] || {}).pred = el.value;
+    }
+  });
+
+  app.addEventListener("click", function (e) {
+    var el = e.target.closest('[data-act="widget-reset"]');
+    if (!el) return;
+    var box = el.closest(".widget");
+    widgetMem[box.dataset.id] = window.Widgets.defaults(box.dataset.widget);
+    var v = widgetMem[box.dataset.id];
+    box.querySelectorAll('input[type="range"]').forEach(function (inp) { inp.value = v[inp.dataset.key]; });
+    updateWidget(box);
+  });
+
+  // ---------- повторение по расписанию ----------
+
+  var INTERVALS = [1, 3, 7, 16];   // через сколько дней снова показать вопрос
+  var reviewShown = null;          // { key, picked } — ответ, который сейчас на экране
+  var reviewSession = { done: 0, right: 0 };
+
+  function dayString(offset) {
+    var d = new Date();
+    d.setDate(d.getDate() + (offset || 0));
+    var m = d.getMonth() + 1, day = d.getDate();
+    return d.getFullYear() + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
+  }
+
+  function questionByKey(key) {
+    var a = key.split(".");
+    var p = project(a[0]);
+    if (!p || !p.theory) return null;
+    var t = p.theory.filter(function (x) { return x.id === a[1]; })[0];
+    if (!t || !a[2]) return null;
+    var qi = Number(a[2].slice(1));
+    var q = t.quiz[qi];
+    return q ? { p: p, t: t, q: q, qi: qi } : null;
+  }
+
+  function scheduleReview(key, box) {
+    if (box >= INTERVALS.length) { delete state.review[key]; return; }
+    state.review[key] = { box: box, due: dayString(INTERVALS[box]) };
+  }
+
+  function dueKeys() {
+    var today = dayString(0);
+    return Object.keys(state.review).filter(function (k) {
+      return state.review[k].due <= today && questionByKey(k);
+    }).sort();
+  }
+
+  function reviewCard() {
+    var due = dueKeys().length;
+    var total = Object.keys(state.review).length;
+    if (due) {
+      return '<a class="next review-card" href="#review"><span class="next-label">Повторение</span>' +
+        '<span class="next-text">' + due + ' ' + plural(due, "вопрос", "вопроса", "вопросов") + ' на сегодня</span>' +
+        '<span class="next-meta">Вопросы, в которых ты ошибся. Пара минут — и они запомнятся надолго.</span></a>';
+    }
+    if (total) {
+      var next = Object.keys(state.review).map(function (k) { return state.review[k].due; }).sort()[0];
+      return '<p class="hint review-later">Повторение: ' + total + ' ' + plural(total, "вопрос", "вопроса", "вопросов") +
+        ' в очереди, ближайшее ' + esc(next) + '.</p>';
+    }
+    return '';
+  }
+
+  function plural(n, one, few, many) {
+    var m10 = n % 10, m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+    return many;
+  }
+
+  function answerReview(key, picked) {
+    var qi = questionByKey(key);
+    var item = state.review[key] || { box: 0 };
+    var right = picked === qi.q.answer;
+    scheduleReview(key, right ? item.box + 1 : 0);
+    save();
+    reviewSession.done++;
+    if (right) reviewSession.right++;
+    reviewShown = { key: key, picked: picked };
+    render();
+  }
+
+  function viewReview() {
+    var h = '<a class="back" href="#">← Весь путь</a>';
+    h += '<header class="phead"><p class="eyebrow">Повторение</p><h1>Вопросы на сегодня</h1>';
+    h += '<p class="lead">Ответил верно — вопрос вернётся через ' + INTERVALS.slice(1).join(', ') +
+      ' дней. Ошибся — завтра снова.</p></header>';
+
+    var key = reviewShown ? reviewShown.key : dueKeys()[0];
+    if (!key) {
+      h += '<section class="panel"><h2>На сегодня всё</h2>';
+      if (reviewSession.done) {
+        h += '<p>Повторено: ' + reviewSession.done + ', верно: ' + reviewSession.right + '.</p>';
+      } else {
+        h += '<p>Вопросов для повторения сейчас нет. Они появляются, когда ты ошибаешься в квизах уроков.</p>';
+      }
+      h += '<p><a class="link" href="#">Вернуться к пути</a></p></section>';
+      app.innerHTML = h;
+      return;
+    }
+
+    var qi = questionByKey(key);
+    var left = dueKeys().filter(function (k) { return k !== key; }).length;
+    h += '<section class="panel"><p class="hint">' + esc(qi.p.title) + ' · ' + esc(qi.t.title) +
+      (left ? ' · ещё ' + left : '') + '</p>';
+    h += '<fieldset class="q"><legend>' + fmt(qi.q.q) + '</legend>';
+    order(qi.q.options.length, qi.qi * 31 + qi.q.q.length + qi.q.options[0].length).forEach(function (oi) {
+      var cls = "opt", answered = !!reviewShown;
+      if (answered && oi === qi.q.answer) cls += " right";
+      else if (answered && oi === reviewShown.picked) cls += " wrong";
+      h += '<button type="button" class="' + cls + '" data-act="review-answer" data-key="' + esc(key) + '" data-i="' + oi + '"' +
+        (answered ? ' disabled' : '') + '>' + esc(qi.q.options[oi]) + '</button>';
+    });
+    if (reviewShown) {
+      var right = reviewShown.picked === qi.q.answer;
+      h += '<p class="why"><strong>' + (right ? 'Верно.' : 'Неверно.') + '</strong> ' + fmt(qi.q.why) + '</p>';
+      var st = state.review[key];
+      h += '<p class="hint">' + (st ? 'Снова покажу ' + esc(st.due) + '.' : 'Этот вопрос выучен и больше не повторяется.') + '</p>';
+      h += '<button type="button" class="run-btn" data-act="review-next">Дальше</button>';
+    }
+    h += '</fieldset></section>';
+    app.innerHTML = h;
+  }
+
   function viewLesson(p, t) {
     var idx = p.theory.indexOf(t);
     var backHref = '#' + p.id + (isIntro(p) ? '' : '/theory');
@@ -509,6 +712,8 @@
     h += '<header class="phead">';
     h += '<p class="eyebrow">Урок ' + (idx + 1) + ' из ' + p.theory.length + ' · ' + esc(t.time) + '</p>';
     h += '<h1>' + esc(t.title) + '</h1>';
+    h += '<label class="toggle"><input type="checkbox" data-setting="predict"' + (predictOn() ? ' checked' : '') +
+      '> Сначала угадывать, что напечатает код</label>';
     h += '</header>';
 
     h += '<section class="panel why-box"><h2>Зачем это нужно</h2><p>' + fmt(t.why) + '</p></section>';
@@ -517,7 +722,8 @@
       h += '<section class="panel"><h2>' + esc(s.h) + '</h2>';
       s.p.forEach(function (x) { h += '<p>' + fmt(x) + '</p>'; });
       if (s.code) h += sectionRunnable(s) ? runBox(p, t, 's' + si, s.code) : codeBlock(s.code);
-      if (s.out) h += codeBlock(s.out, 'Что напечатает программа');
+      if (s.out) h += predictOn() ? predictBlock(blockId(p, t, 's' + si), s.out) : codeBlock(s.out, 'Что напечатает программа');
+      if (s.widget && window.Widgets) h += widgetHtml(blockId(p, t, 'w' + si), s.widget);
       if (s.note) h += '<p class="note">' + fmt(s.note) + '</p>';
       h += '</section>';
     });
@@ -652,6 +858,7 @@
   function render() {
     var a = parts();
     var p = project(a[0]);
+    if (a[0] === "review") { viewReview(); return; }
     if (!p) { viewHome(); return; }
     if (a[1] === "theory" && a[2] && hasLessons(p)) {
       var t = p.theory.filter(function (x) { return x.id === a[2]; })[0];
@@ -674,6 +881,12 @@
 
   app.addEventListener("change", function (e) {
     var el = e.target;
+    if (el.dataset && el.dataset.setting) {
+      state.settings[el.dataset.setting] = el.checked;
+      save();
+      rerenderInPlace();
+      return;
+    }
     if (el.type === "checkbox" && el.dataset.key) {
       if (el.checked) state[el.dataset.group][el.dataset.key] = true;
       else delete state[el.dataset.group][el.dataset.key];
@@ -712,8 +925,13 @@
       if (act === "reset-space") { handleResetSpace(box); return; }
     }
 
+    if (act === "reveal") { revealPrediction(el.closest(".predict")); return; }
+    if (act === "review-answer") { answerReview(el.dataset.key, Number(el.dataset.i)); return; }
+    if (act === "review-next") { reviewShown = null; render(); window.scrollTo(0, 0); return; }
+
     if (act === "answer") {
-      state.quiz[el.dataset.key] = Number(el.dataset.i);
+      var qi = questionByKey(el.dataset.key);
+      if (qi && Number(el.dataset.i) !== qi.q.answer) scheduleReview(el.dataset.key, 0);
       save();
       rerenderInPlace();
     }
