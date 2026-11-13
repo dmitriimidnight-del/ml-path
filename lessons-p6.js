@@ -331,9 +331,9 @@
           h: "Где разместить: три варианта",
           p: [
             "Условия бесплатных хостингов часто меняются, поэтому вот главное, что важно знать, а точные условия перед выбором всегда проверяй на их сайтах. Сведения ниже проверены в ноябре 2026 года.",
-            "Streamlit Community Cloud. Бесплатный хостинг для приложений на Streamlit: подключаешь репозиторий на GitHub, выбираешь файл, нажимаешь Deploy. Ограничения: у приложений есть лимиты памяти и процессора, а неактивные приложения засыпают. Самый простой путь для демо.",
+            "Streamlit Community Cloud. Бесплатный хостинг для приложений на Streamlit: подключаешь репозиторий на GitHub, выбираешь файл, нажимаешь Deploy. Ограничения: у приложений есть лимиты памяти и процессора, а приложение без посещений 12 часов засыпает и просыпается по кнопке на странице. Самый простой путь для демо.",
             "Render. Позволяет разместить свой API на FastAPI из проекта 3. Бесплатный сервис засыпает после 15 минут без запросов, а первый запрос после сна ждёт около минуты. На каждое рабочее пространство даётся 750 бесплатных часов в месяц, а файлы, записанные сервисом на диск, теряются при перезапуске.",
-            "Hugging Face Spaces. Раньше был стандартным местом для бесплатных ML-демо, но по текущей документации создание приложений на Gradio и Docker там требует платного плана. Проверь условия перед тем, как на него рассчитывать."
+            "Hugging Face Spaces. Раньше был стандартным местом для бесплатных ML-демо, но по текущей документации создание приложений на Gradio и Docker там требует платного плана. Бесплатно остались статические страницы и до двух приложений на Gradio с ZeroGPU. Проверь условия перед тем, как на него рассчитывать."
           ]
         },
         {
@@ -622,7 +622,7 @@
       ],
       sources: [
         { t: "GitHub Docs: Pinning items to your profile (англ.)", u: "https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-github-profile/customizing-your-profile/pinning-items-to-your-profile" },
-        { t: "GitHub Docs: Managing your profile README (англ.)", u: "https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-github-profile/customizing-your-profile/managing-your-profile-readme" }
+        { t: "GitHub Docs: Managing your profile README (англ.)", u: "https://docs.github.com/en/account-and-profile/how-tos/profile-customization/managing-your-profile-readme" }
       ]
     }
   ];
