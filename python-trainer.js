@@ -1,6 +1,6 @@
 // Создано tools/build_trainer.py: каждая задача проверена запуском в Python 3.13.
 window.PYTRAINER = {
- "harness": "\nimport json as _json\n_res = []\nfor _call, _exp in _TESTS:\n    try:\n        _got = eval(_call)\n        _res.append([_call, repr(_got), _got == eval(_exp), _exp])\n    except Exception as _e:\n        _res.append([_call, type(_e).__name__ + \": \" + str(_e), False, _exp])\nprint(\"@@RESULTS@@\" + _json.dumps(_res, ensure_ascii=False))\n",
+ "harness": "\nimport json as _json\n_res = []\nfor _call, _exp in _TESTS:\n    try:\n        _got = eval(_call)\n        try:\n            _ok = bool(_got == eval(_exp))   # np.bool_ -> bool; an array or Series raises -> not equal\n        except Exception:\n            _ok = False\n        _res.append([_call, repr(_got), _ok, _exp])\n    except Exception as _e:\n        _res.append([_call, type(_e).__name__ + \": \" + str(_e), False, _exp])\nprint(\"@@RESULTS@@\" + _json.dumps(_res, ensure_ascii=False))\n",
  "topics": [
   {
    "id": "basics",
@@ -435,7 +435,8 @@ window.PYTRAINER = {
      "id": "basics.15",
      "testsPy": "_TESTS = [('reading_time(200)', '1'), ('reading_time(201)', '2'), ('reading_time(0)', '0'), ('reading_time(450)', '3')]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "strings",
@@ -773,7 +774,8 @@ window.PYTRAINER = {
      "id": "strings.15",
      "testsPy": "_TESTS = [('is_palindrome(\"Level\")', 'True'), ('is_palindrome(\"Poe\")', 'False'), ('is_palindrome(\"a\")', 'True')]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "formatting",
@@ -996,7 +998,8 @@ window.PYTRAINER = {
      "id": "formatting.10",
      "testsPy": "_TESTS = [('report(\"Keats\", 0.9123)', \"'Keats: 0.91'\"), ('report(\"Poe\", 1)', \"'Poe: 1.00'\")]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "lists",
@@ -1410,7 +1413,8 @@ window.PYTRAINER = {
      "id": "lists.15",
      "testsPy": "_TESTS = [('middle([1, 2, 3])', '2'), ('middle([\"a\"])', \"'a'\"), ('middle([1, 2, 3, 4, 5])', '3')]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "conditions",
@@ -1830,7 +1834,8 @@ window.PYTRAINER = {
      "id": "conditions.15",
      "testsPy": "_TESTS = [('season(1)', \"'winter'\"), ('season(12)', \"'winter'\"), ('season(7)', \"'summer'\"), ('season(4)', \"'other'\")]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "loops",
@@ -2406,7 +2411,8 @@ window.PYTRAINER = {
      "id": "loops.15",
      "testsPy": "_TESTS = [('first_long([\"a\", \"bbb\", \"cccc\"], 2)', \"'bbb'\"), ('first_long([\"a\"], 3)', 'None')]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "zipenum",
@@ -2726,7 +2732,8 @@ window.PYTRAINER = {
      "id": "zipenum.10",
      "testsPy": "_TESTS = [('numbered([\"Tyger\", \"burning\"])', \"['1. Tyger', '2. burning']\"), ('numbered([])', '[]')]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "dicts",
@@ -3091,7 +3098,8 @@ window.PYTRAINER = {
      "id": "dicts.15",
      "testsPy": "_TESTS = [('invert({\"a\": 1, \"b\": 2})', \"{1: 'a', 2: 'b'}\"), ('invert({})', '{}')]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "nested",
@@ -3520,7 +3528,8 @@ window.PYTRAINER = {
      "id": "nested.10",
      "testsPy": "_TESTS = [('lines_per_author([{\"author\": \"Poe\", \"lines\": 108}, {\"author\": \"Keats\", \"lines\": 14}, {\"author\": \"Poe\", \"lines\": 20}])', \"{'Poe': 128, 'Keats': 14}\"), ('lines_per_author([])', '{}')]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "functions",
@@ -4056,7 +4065,8 @@ window.PYTRAINER = {
      "id": "functions.15",
      "testsPy": "_TESTS = [('clean_words(\"Hope, is the thing!\")', \"['hope', 'is', 'the', 'thing']\"), ('clean_words(\"\")', '[]')]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "sorting",
@@ -4369,7 +4379,8 @@ window.PYTRAINER = {
      "id": "sorting.10",
      "testsPy": "_TESTS = [('top_n({\"a\": 1, \"b\": 3, \"c\": 2}, 2)', \"['b', 'c']\"), ('top_n({\"x\": 1}, 5)', \"['x']\")]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "comprehensions",
@@ -4845,7 +4856,8 @@ window.PYTRAINER = {
      "id": "comprehensions.15",
      "testsPy": "_TESTS = [('word_lengths([\"sea\", \"moon\"])', \"{'sea': 3, 'moon': 4}\"), ('word_lengths([])', '{}')]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "errors",
@@ -5390,7 +5402,8 @@ window.PYTRAINER = {
      "id": "errors.15",
      "testsPy": "_TESTS = [('safe_ratio(1, 4)', '0.25'), ('safe_ratio(1, 0)', '0'), ('safe_ratio(2, 3)', '0.67')]\n"
     }
-   ]
+   ],
+   "track": "py"
   },
   {
    "id": "classes",
@@ -5968,7 +5981,1751 @@ window.PYTRAINER = {
      "id": "classes.15",
      "testsPy": "_TESTS = [('add_two_and_count()', '2'), ('Library().count()', '0')]\n"
     }
-   ]
+   ],
+   "track": "py"
+  },
+  {
+   "id": "np_arrays",
+   "title": "NumPy: массивы",
+   "diag": [],
+   "intro": "Массив NumPy — набор чисел, с которым действия идут сразу над всеми элементами: `a * 2` умножает каждый. Создают из списка: `np.array([1, 2, 3])`. `a.shape` — размеры, `np.arange(n)` — числа от 0 до n−1, `a.tolist()` — обратно в обычный список. На массивах держатся pandas, scikit-learn и PyTorch.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "import numpy as np\na = np.array([1, 2, 3])\nprint(a * 2, a + a)",
+     "why": "Действие применяется к каждому элементу. Со списком `[1, 2, 3] * 2` получился бы список, повторённый дважды.",
+     "id": "np_arrays.1",
+     "expected": "[2 4 6] [2 4 6]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "a",
+          "массив 3: [1, 2, 3]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "a",
+          "массив 3: [1, 2, 3]"
+         ]
+        ],
+        "out": "[2 4 6] [2 4 6]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "import numpy as np\nm = np.array([[1, 2, 3], [4, 5, 6]])\nprint(m.shape, len(m), m.size)",
+     "why": "`shape` — (строк, столбцов), `len` — число строк, `size` — сколько всего чисел.",
+     "id": "np_arrays.2",
+     "expected": "(2, 3) 2 6",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "m",
+          "массив 2×3: [[1, 2, 3], [4, 5, 6]]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "m",
+          "массив 2×3: [[1, 2, 3], [4, 5, 6]]"
+         ]
+        ],
+        "out": "(2, 3) 2 6\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Удвоить длину каждого стихотворения.",
+     "why": "Обычный список при умножении на 2 повторяется. Чтобы умножить каждое число, нужен массив `np.array`.",
+     "id": "np_arrays.3",
+     "fixedLine": "lengths = np.array([14, 8, 20])",
+     "lines": [
+      "import numpy as np",
+      "lengths = [14, 8, 20]",
+      "print(lengths * 2)"
+     ],
+     "bugLine": 1,
+     "expected": "[28 16 40]",
+     "actual": "[14, 8, 20, 14, 8, 20]"
+    },
+    {
+     "type": "bug",
+     "task": "Получить числа от 0 до 4.",
+     "why": "`np.arange` работает как `range`: по умолчанию начинает с 0 и не включает конец.",
+     "id": "np_arrays.4",
+     "fixedLine": "a = np.arange(5)",
+     "lines": [
+      "import numpy as np",
+      "a = np.arange(1, 5)",
+      "print(a.tolist())"
+     ],
+     "bugLine": 1,
+     "expected": "[0, 1, 2, 3, 4]",
+     "actual": "[1, 2, 3, 4]"
+    },
+    {
+     "type": "order",
+     "task": "Перевести доли в проценты с одним знаком.",
+     "id": "np_arrays.5",
+     "lines": [
+      "import numpy as np",
+      "scores = np.array([0.912, 0.784])",
+      "pct = np.round(scores * 100, 1)",
+      "print(pct.tolist())"
+     ],
+     "expected": "[91.2, 78.4]",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Завести счётчики-нули и записать первый.",
+     "id": "np_arrays.6",
+     "lines": [
+      "import numpy as np",
+      "counts = np.zeros(3, dtype=int)",
+      "counts[0] = 5",
+      "print(counts.tolist(), counts.shape)"
+     ],
+     "expected": "[5, 0, 0] (3,)",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: создай массив из списка.",
+     "why": "Массив из списка создаёт `np.array(список)`.",
+     "id": "np_arrays.7",
+     "lines": [
+      "import numpy as np",
+      "a = ([3, 1, 2])",
+      "print(a * 10)"
+     ],
+     "gapLine": 1,
+     "before": "a = ",
+     "after": "([3, 1, 2])",
+     "answer": "np.array",
+     "expected": "[30 10 20]"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: размеры таблицы.",
+     "why": "`shape` — кортеж (строк, столбцов).",
+     "id": "np_arrays.8",
+     "lines": [
+      "import numpy as np",
+      "m = np.array([[1, 2], [3, 4], [5, 6]])",
+      "print(m)"
+     ],
+     "gapLine": 2,
+     "before": "print(m",
+     "after": ")",
+     "answer": ".shape",
+     "expected": "(3, 2)"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `normalize(values)`: каждое число делится на максимум, результат — обычный список.",
+     "starter": "import numpy as np\n\n\ndef normalize(values):\n    # твой код\n    pass",
+     "solution": "import numpy as np\n\n\ndef normalize(values):\n    a = np.array(values)\n    return (a / a.max()).tolist()",
+     "tests": [
+      "normalize([1, 2, 4])",
+      "normalize([5])"
+     ],
+     "hints": [
+      "Сделай массив: `a = np.array(values)`.",
+      "Деление массива на число делит каждый элемент: `a / a.max()`.",
+      "`return (a / a.max()).tolist()`"
+     ],
+     "setup": "",
+     "id": "np_arrays.9",
+     "testsPy": "_TESTS = [('normalize([1, 2, 4])', '[0.25, 0.5, 1.0]'), ('normalize([5])', '[1.0]')]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `to_percent(shares)`: доли в проценты с одним знаком после точки, обычным списком.",
+     "starter": "import numpy as np\n\n\ndef to_percent(shares):\n    # твой код\n    pass",
+     "solution": "import numpy as np\n\n\ndef to_percent(shares):\n    return np.round(np.array(shares) * 100, 1).tolist()",
+     "tests": [
+      "to_percent([0.5, 0.123])",
+      "to_percent([])"
+     ],
+     "hints": [
+      "Сделай массив и умножь на 100.",
+      "Округлить все элементы: `np.round(массив, 1)`.",
+      "`return np.round(np.array(shares) * 100, 1).tolist()`"
+     ],
+     "setup": "",
+     "id": "np_arrays.10",
+     "testsPy": "_TESTS = [('to_percent([0.5, 0.123])', '[50.0, 12.3]'), ('to_percent([])', '[]')]\n"
+    }
+   ],
+   "track": "data"
+  },
+  {
+   "id": "np_index",
+   "title": "NumPy: индексы и маски",
+   "diag": [],
+   "intro": "Индексы и срезы — как у списков: `a[0]`, `a[-2:]`. Маска — массив из True и False: `a > 10`. `a[a > 10]` оставляет только подходящие элементы. Два условия соединяют `&` и берут каждое в скобки. В таблице `m[строка, столбец]`, а `m[:, 0]` — весь первый столбец.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "import numpy as np\na = np.array([5, 12, 8, 20])\nprint(a[a > 10], (a > 10).sum())",
+     "why": "Маска оставляет элементы, где True. При сложении True считается как 1, поэтому сумма маски — число подходящих.",
+     "id": "np_index.1",
+     "expected": "[12 20] 2",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "a",
+          "массив 4: [5, 12, 8, 20]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "a",
+          "массив 4: [5, 12, 8, 20]"
+         ]
+        ],
+        "out": "[12 20] 2\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "import numpy as np\nm = np.array([[1, 2, 3], [4, 5, 6]])\nprint(m[1, 2], m[:, 0], m[0])",
+     "why": "`m[1, 2]` — строка 1, столбец 2. `m[:, 0]` — все строки, столбец 0. `m[0]` — вся первая строка.",
+     "id": "np_index.2",
+     "expected": "6 [1 4] [1 2 3]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "m",
+          "массив 2×3: [[1, 2, 3], [4, 5, 6]]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "m",
+          "массив 2×3: [[1, 2, 3], [4, 5, 6]]"
+         ]
+        ],
+        "out": "6 [1 4] [1 2 3]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Оставить длины больше 10 и меньше 30.",
+     "why": "`and` не умеет сравнивать массивы целиком. Для масок нужен `&`, а каждое условие — в скобках.",
+     "id": "np_index.3",
+     "fixedLine": "mid = lens[(lens > 10) & (lens < 30)]",
+     "lines": [
+      "import numpy as np",
+      "lens = np.array([5, 14, 40, 22])",
+      "mid = lens[lens > 10 and lens < 30]",
+      "print(mid)"
+     ],
+     "bugLine": 2,
+     "expected": "[14 22]",
+     "actual": "ValueError: The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()",
+     "actualError": true
+    },
+    {
+     "type": "bug",
+     "task": "Взять второй столбец таблицы.",
+     "why": "`m[1]` — вторая строка. Столбец — `m[:, 1]`: двоеточие значит «все строки».",
+     "id": "np_index.4",
+     "fixedLine": "print(m[:, 1])",
+     "lines": [
+      "import numpy as np",
+      "m = np.array([[1, 10], [2, 20], [3, 30]])",
+      "print(m[1])"
+     ],
+     "bugLine": 2,
+     "expected": "[10 20 30]",
+     "actual": "[ 2 20]"
+    },
+    {
+     "type": "order",
+     "task": "Заменить отрицательные числа нулями.",
+     "id": "np_index.5",
+     "lines": [
+      "import numpy as np",
+      "a = np.array([3, -1, 4, -5])",
+      "a[a < 0] = 0",
+      "print(a)"
+     ],
+     "expected": "[3 0 4 0]",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Взять два последних элемента и сложить.",
+     "id": "np_index.6",
+     "lines": [
+      "import numpy as np",
+      "a = np.array([4, 8, 15, 16])",
+      "tail = a[-2:]",
+      "print(tail, tail.sum())"
+     ],
+     "expected": "[15 16] 31",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши маску: оценки не ниже 0.7.",
+     "why": "Маска — сравнение массива с числом: `scores >= 0.7`.",
+     "id": "np_index.7",
+     "lines": [
+      "import numpy as np",
+      "scores = np.array([0.9, 0.4, 0.75])",
+      "good = scores[]",
+      "print(len(good))"
+     ],
+     "gapLine": 2,
+     "before": "good = scores[",
+     "after": "]",
+     "answer": "scores >= 0.7",
+     "expected": "2"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши индекс: строка 1, столбец 0.",
+     "why": "Сначала номер строки, потом столбца, через запятую.",
+     "id": "np_index.8",
+     "lines": [
+      "import numpy as np",
+      "m = np.array([[1, 2], [3, 4]])",
+      "print(m[])"
+     ],
+     "gapLine": 2,
+     "before": "print(m[",
+     "after": "])",
+     "answer": "1, 0",
+     "expected": "3"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `count_above(values, limit)`: сколько чисел больше `limit`.",
+     "starter": "import numpy as np\n\n\ndef count_above(values, limit):\n    # твой код\n    pass",
+     "solution": "import numpy as np\n\n\ndef count_above(values, limit):\n    return int((np.array(values) > limit).sum())",
+     "tests": [
+      "count_above([1, 5, 10], 4)",
+      "count_above([], 1)",
+      "count_above([3, 3], 3)"
+     ],
+     "hints": [
+      "Сделай массив и маску: `np.array(values) > limit`.",
+      "Сумма маски — число True.",
+      "`return int((np.array(values) > limit).sum())`"
+     ],
+     "setup": "",
+     "id": "np_index.9",
+     "testsPy": "_TESTS = [('count_above([1, 5, 10], 4)', '2'), ('count_above([], 1)', '0'), ('count_above([3, 3], 3)', '0')]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `column(rows, j)`: столбец `j` из списка строк таблицы, обычным списком.",
+     "starter": "import numpy as np\n\n\ndef column(rows, j):\n    # твой код\n    pass",
+     "solution": "import numpy as np\n\n\ndef column(rows, j):\n    return np.array(rows)[:, j].tolist()",
+     "tests": [
+      "column([[1, 2], [3, 4]], 1)",
+      "column([[7, 8, 9]], 0)"
+     ],
+     "hints": [
+      "Преврати список строк в массив.",
+      "Весь столбец — срез `[:, j]`.",
+      "`return np.array(rows)[:, j].tolist()`"
+     ],
+     "setup": "",
+     "id": "np_index.10",
+     "testsPy": "_TESTS = [('column([[1, 2], [3, 4]], 1)', '[2, 4]'), ('column([[7, 8, 9]], 0)', '[7]')]\n"
+    }
+   ],
+   "track": "data"
+  },
+  {
+   "id": "np_agg",
+   "title": "NumPy: подсчёты",
+   "diag": [],
+   "intro": "`sum`, `mean`, `max`, `min` считают по всему массиву, `argmax` — номер самого большого элемента. В таблице `axis=0` считает по столбцам (сверху вниз), `axis=1` — по строкам (слева направо). Так считают метрики: точность — это среднее маски «предсказание совпало».",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "import numpy as np\na = np.array([3, 9, 6])\nprint(a.sum(), a.mean(), a.argmax())",
+     "why": "Среднее всегда дробное. `argmax` — номер максимума: 9 стоит на месте 1.",
+     "id": "np_agg.1",
+     "expected": "18 6.0 1",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "a",
+          "массив 3: [3, 9, 6]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "a",
+          "массив 3: [3, 9, 6]"
+         ]
+        ],
+        "out": "18 6.0 1\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "import numpy as np\nm = np.array([[1, 2], [3, 4]])\nprint(m.sum(axis=0), m.sum(axis=1))",
+     "why": "`axis=0` складывает по столбцам: 1+3 и 2+4. `axis=1` — по строкам: 1+2 и 3+4.",
+     "id": "np_agg.2",
+     "expected": "[4 6] [3 7]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "m",
+          "массив 2×2: [[1, 2], [3, 4]]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "m",
+          "массив 2×2: [[1, 2], [3, 4]]"
+         ]
+        ],
+        "out": "[4 6] [3 7]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Средняя оценка каждой модели. Каждая строка — одна модель.",
+     "why": "`axis=0` усредняет по столбцам, то есть по разным моделям. Для каждой строки нужен `axis=1`.",
+     "id": "np_agg.3",
+     "fixedLine": "print(scores.mean(axis=1).round(2).tolist())",
+     "lines": [
+      "import numpy as np",
+      "scores = np.array([[0.8, 0.6], [0.9, 0.7]])",
+      "print(scores.mean(axis=0).round(2).tolist())"
+     ],
+     "bugLine": 2,
+     "expected": "[0.7, 0.8]",
+     "actual": "[0.85, 0.65]"
+    },
+    {
+     "type": "bug",
+     "task": "Найти номер лучшей модели.",
+     "why": "`max` даёт само значение, а номер элемента — `argmax`.",
+     "id": "np_agg.4",
+     "fixedLine": "print(f1.argmax())",
+     "lines": [
+      "import numpy as np",
+      "f1 = np.array([0.71, 0.88, 0.80])",
+      "print(f1.max())"
+     ],
+     "bugLine": 2,
+     "expected": "1",
+     "actual": "0.88"
+    },
+    {
+     "type": "order",
+     "task": "Посчитать долю длинных строк.",
+     "id": "np_agg.5",
+     "lines": [
+      "import numpy as np",
+      "lens = np.array([5, 14, 40, 22])",
+      "long = lens > 10",
+      "print(long.mean())"
+     ],
+     "expected": "0.75",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Посчитать точность предсказаний.",
+     "id": "np_agg.6",
+     "lines": [
+      "import numpy as np",
+      "y_true = np.array([1, 0, 1, 1])",
+      "y_pred = np.array([1, 1, 1, 0])",
+      "acc = (y_true == y_pred).mean()",
+      "print(acc)"
+     ],
+     "expected": "0.5",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      [
+       0,
+       2,
+       1,
+       3,
+       4
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: среднее по каждому столбцу.",
+     "why": "По столбцам — `axis=0`.",
+     "id": "np_agg.7",
+     "lines": [
+      "import numpy as np",
+      "m = np.array([[2, 4], [6, 8]])",
+      "print(m.mean())"
+     ],
+     "gapLine": 2,
+     "before": "print(m.mean(",
+     "after": "))",
+     "answer": "axis=0",
+     "expected": "[4. 6.]"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: номер самого маленького значения.",
+     "why": "Номер минимума — `argmin()`, по аналогии с `argmax()`.",
+     "id": "np_agg.8",
+     "lines": [
+      "import numpy as np",
+      "losses = np.array([0.9, 0.3, 0.5])",
+      "print(losses)"
+     ],
+     "gapLine": 2,
+     "before": "print(losses",
+     "after": ")",
+     "answer": ".argmin()",
+     "expected": "1"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `accuracy(y_true, y_pred)`: доля совпадений, округлённая до двух знаков.",
+     "starter": "import numpy as np\n\n\ndef accuracy(y_true, y_pred):\n    # твой код\n    pass",
+     "solution": "import numpy as np\n\n\ndef accuracy(y_true, y_pred):\n    return round(float((np.array(y_true) == np.array(y_pred)).mean()), 2)",
+     "tests": [
+      "accuracy([1, 0, 1], [1, 1, 1])",
+      "accuracy([1, 1], [1, 1])"
+     ],
+     "hints": [
+      "Сравни два массива: получится маска совпадений.",
+      "Доля True — среднее маски: `.mean()`.",
+      "`return round(float((np.array(y_true) == np.array(y_pred)).mean()), 2)`"
+     ],
+     "setup": "",
+     "id": "np_agg.9",
+     "testsPy": "_TESTS = [('accuracy([1, 0, 1], [1, 1, 1])', '0.67'), ('accuracy([1, 1], [1, 1])', '1.0')]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `best_model(names, scores)`: имя модели с самой высокой оценкой.",
+     "starter": "import numpy as np\n\n\ndef best_model(names, scores):\n    # твой код\n    pass",
+     "solution": "import numpy as np\n\n\ndef best_model(names, scores):\n    return names[int(np.argmax(scores))]",
+     "tests": [
+      "best_model([\"a\", \"b\", \"c\"], [0.5, 0.9, 0.7])",
+      "best_model([\"x\"], [0.1])"
+     ],
+     "hints": [
+      "Нужен номер максимума: `np.argmax(scores)`.",
+      "По этому номеру возьми имя из `names`.",
+      "`return names[int(np.argmax(scores))]`"
+     ],
+     "setup": "",
+     "id": "np_agg.10",
+     "testsPy": "_TESTS = [('best_model([\"a\", \"b\", \"c\"], [0.5, 0.9, 0.7])', \"'b'\"), ('best_model([\"x\"], [0.1])', \"'x'\")]\n"
+    }
+   ],
+   "track": "data"
+  },
+  {
+   "id": "pd_frame",
+   "title": "pandas: таблица DataFrame",
+   "diag": [],
+   "intro": "DataFrame — таблица: строка — одна запись, колонка — одно поле. Её делают из списка словарей `pd.DataFrame(poems)` или из словаря колонок. `df.shape` — размеры, `df[\"lines\"]` — одна колонка (Series), `df[[\"title\", \"lines\"]]` — несколько, `df.iloc[0]` — первая строка. `tolist()` превращает колонку в список.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "import pandas as pd\ndf = pd.DataFrame([{\"title\": \"Hope\", \"lines\": 12}, {\"title\": \"Raven\", \"lines\": 108}])\nprint(df.shape, list(df.columns))",
+     "why": "Каждый словарь стал строкой, ключи — колонками.",
+     "id": "pd_frame.1",
+     "expected": "(2, 2) ['title', 'lines']",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 2×2, колонки: title, lines"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 2×2, колонки: title, lines"
+         ]
+        ],
+        "out": "(2, 2) ['title', 'lines']\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "import pandas as pd\ndf = pd.DataFrame({\"title\": [\"Hope\", \"Raven\", \"Tyger\"], \"lines\": [12, 108, 24]})\nprint(df[\"lines\"].sum(), df[\"title\"].tolist()[-1])",
+     "why": "Колонку можно сложить целиком, а `tolist()` делает из неё обычный список.",
+     "id": "pd_frame.2",
+     "expected": "144 Tyger",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×2, колонки: title, lines"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×2, колонки: title, lines"
+         ]
+        ],
+        "out": "144 Tyger\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Найти самое длинное стихотворение по числу строк.",
+     "why": "Название колонки должно совпадать до буквы, включая регистр. Список колонок — `df.columns`.",
+     "id": "pd_frame.3",
+     "fixedLine": "print(df[\"lines\"].max())",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"title\": [\"Hope\", \"Raven\"], \"lines\": [12, 108]})",
+      "print(df[\"Lines\"].max())"
+     ],
+     "bugLine": 2,
+     "expected": "108",
+     "actual": "KeyError: 'Lines'",
+     "actualError": true
+    },
+    {
+     "type": "bug",
+     "task": "Взять две колонки.",
+     "why": "Несколько колонок передают списком, поэтому скобки двойные: `df[[\"title\", \"lines\"]]`.",
+     "id": "pd_frame.4",
+     "fixedLine": "print(df[[\"title\", \"lines\"]].shape)",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"title\": [\"Hope\"], \"author\": [\"Dickinson\"], \"lines\": [12]})",
+      "print(df[\"title\", \"lines\"].shape)"
+     ],
+     "bugLine": 2,
+     "expected": "(1, 2)",
+     "actual": "KeyError: ('title', 'lines')",
+     "actualError": true
+    },
+    {
+     "type": "order",
+     "task": "Построить таблицу и напечатать первую запись.",
+     "id": "pd_frame.5",
+     "lines": [
+      "import pandas as pd",
+      "poems = [{\"title\": \"Hope\", \"lines\": 12}, {\"title\": \"Raven\", \"lines\": 108}]",
+      "df = pd.DataFrame(poems)",
+      "first = df.iloc[0]",
+      "print(first[\"title\"], first[\"lines\"])"
+     ],
+     "expected": "Hope 12",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      [
+       1,
+       0,
+       2,
+       3,
+       4
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Посчитать среднюю длину.",
+     "id": "pd_frame.6",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"lines\": [12, 108, 24]})",
+      "avg = df[\"lines\"].mean()",
+      "print(round(avg, 1))"
+     ],
+     "expected": "48.0",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: сколько строк в таблице.",
+     "why": "Число строк — `len(df)` или `df.shape[0]`.",
+     "id": "pd_frame.7",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"title\": [\"Hope\", \"Raven\"], \"lines\": [12, 108]})",
+      "print()"
+     ],
+     "gapLine": 2,
+     "before": "print(",
+     "after": ")",
+     "answer": "len(df)",
+     "expected": "2"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: колонка с названиями.",
+     "why": "Колонку берут по названию в квадратных скобках.",
+     "id": "pd_frame.8",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"title\": [\"Hope\", \"Raven\", \"Tyger\"]})",
+      "print(df.tolist())"
+     ],
+     "gapLine": 2,
+     "before": "print(df",
+     "after": ".tolist())",
+     "answer": "[\"title\"]",
+     "expected": "['Hope', 'Raven', 'Tyger']"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `total_lines(poems)`: сумма поля `\"lines\"` по списку словарей. Сделай через DataFrame.",
+     "starter": "import pandas as pd\n\n\ndef total_lines(poems):\n    # твой код\n    pass",
+     "solution": "import pandas as pd\n\n\ndef total_lines(poems):\n    df = pd.DataFrame(poems)\n    return int(df[\"lines\"].sum())",
+     "tests": [
+      "total_lines([{\"title\": \"a\", \"lines\": 3}, {\"title\": \"b\", \"lines\": 4}])",
+      "total_lines([{\"title\": \"a\", \"lines\": 10}])"
+     ],
+     "hints": [
+      "Сделай таблицу: `pd.DataFrame(poems)`.",
+      "Сумма колонки — `df[\"lines\"].sum()`.",
+      "`return int(df[\"lines\"].sum())`"
+     ],
+     "setup": "",
+     "id": "pd_frame.9",
+     "testsPy": "_TESTS = [('total_lines([{\"title\": \"a\", \"lines\": 3}, {\"title\": \"b\", \"lines\": 4}])', '7'), ('total_lines([{\"title\": \"a\", \"lines\": 10}])', '10')]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `titles(df)`: список значений колонки `\"title\"`.",
+     "starter": "import pandas as pd\n\n\ndef titles(df):\n    # твой код\n    pass",
+     "solution": "import pandas as pd\n\n\ndef titles(df):\n    return df[\"title\"].tolist()",
+     "tests": [
+      "titles(pd.DataFrame({\"title\": [\"A\", \"B\"]}))",
+      "titles(pd.DataFrame({\"title\": []}))"
+     ],
+     "hints": [
+      "Колонка — `df[\"title\"]`.",
+      "В список превращает `tolist()`.",
+      "`return df[\"title\"].tolist()`"
+     ],
+     "setup": "",
+     "id": "pd_frame.10",
+     "testsPy": "_TESTS = [('titles(pd.DataFrame({\"title\": [\"A\", \"B\"]}))', \"['A', 'B']\"), ('titles(pd.DataFrame({\"title\": []}))', '[]')]\n"
+    }
+   ],
+   "track": "data"
+  },
+  {
+   "id": "pd_filter",
+   "title": "pandas: фильтры и новые колонки",
+   "diag": [],
+   "intro": "Фильтр — маска, как в NumPy: `df[df[\"lines\"] > 20]`. Два условия — через `&`, каждое в скобках. Новая колонка появляется присваиванием: `df[\"stanzas\"] = df[\"lines\"] // 4`. Методы строк вызывают через `.str`: `df[\"title\"].str.len()`. Сортировка — `sort_values`.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "import pandas as pd\ndf = pd.DataFrame({\"title\": [\"Hope\", \"Raven\", \"Tyger\"], \"lines\": [12, 108, 24]})\nlong = df[df[\"lines\"] > 20]\nprint(long[\"title\"].tolist())",
+     "why": "Маска оставляет строки таблицы, где условие верно.",
+     "id": "pd_filter.1",
+     "expected": "['Raven', 'Tyger']",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×2, колонки: title, lines"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 3,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×2, колонки: title, lines"
+         ],
+         [
+          "long",
+          "таблица 2×2, колонки: title, lines"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×2, колонки: title, lines"
+         ],
+         [
+          "long",
+          "таблица 2×2, колонки: title, lines"
+         ]
+        ],
+        "out": "['Raven', 'Tyger']\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "import pandas as pd\ndf = pd.DataFrame({\"title\": [\"Hope\", \"Raven\"], \"lines\": [12, 108]})\ndf[\"stanzas\"] = df[\"lines\"] // 4\nprint(df[\"stanzas\"].tolist(), df.shape)",
+     "why": "Новая колонка считается для каждой строки сразу, колонок стало три.",
+     "id": "pd_filter.2",
+     "expected": "[3, 27] (2, 3)",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 2×2, колонки: title, lines"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 3,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 2×3, колонки: title, lines, stanzas"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 2×3, колонки: title, lines, stanzas"
+         ]
+        ],
+        "out": "[3, 27] (2, 3)\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Найти стихотворения По длиннее 50 строк.",
+     "why": "`&` выполняется раньше сравнений, поэтому Python пытается вычислить `\"Poe\" & df[\"lines\"]`. Каждое условие берут в скобки.",
+     "id": "pd_filter.3",
+     "fixedLine": "sel = df[(df[\"author\"] == \"Poe\") & (df[\"lines\"] > 50)]",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"author\": [\"Poe\", \"Poe\", \"Keats\"], \"lines\": [108, 20, 80]})",
+      "sel = df[df[\"author\"] == \"Poe\" & df[\"lines\"] > 50]",
+      "print(len(sel))"
+     ],
+     "bugLine": 2,
+     "expected": "1",
+     "actual": "TypeError: Cannot perform 'rand_' with a dtyped [int64] array and scalar of type [bool]",
+     "actualError": true
+    },
+    {
+     "type": "bug",
+     "task": "Найти самое длинное стихотворение сортировкой.",
+     "why": "По умолчанию сортировка по возрастанию, и первым оказывается самое короткое. Нужно `ascending=False`.",
+     "id": "pd_filter.4",
+     "fixedLine": "top = df.sort_values(\"lines\", ascending=False)",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"title\": [\"Hope\", \"Raven\", \"Tyger\"], \"lines\": [12, 108, 24]})",
+      "top = df.sort_values(\"lines\")",
+      "print(top[\"title\"].tolist()[0])"
+     ],
+     "bugLine": 2,
+     "expected": "Raven",
+     "actual": "Hope"
+    },
+    {
+     "type": "order",
+     "task": "Найти самое длинное название.",
+     "id": "pd_filter.5",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"title\": [\"Hope\", \"The Raven\", \"Tyger\"]})",
+      "df[\"n\"] = df[\"title\"].str.len()",
+      "best = df.sort_values(\"n\").iloc[-1]",
+      "print(best[\"title\"], best[\"n\"])"
+     ],
+     "expected": "The Raven 9",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Оставить строки со словом love.",
+     "id": "pd_filter.6",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"line\": [\"love is\", \"sea\", \"my love\"]})",
+      "mask = df[\"line\"].str.contains(\"love\")",
+      "print(df[mask][\"line\"].tolist())"
+     ],
+     "expected": "['love is', 'my love']",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши маску: стихотворения короче 50 строк.",
+     "why": "Маска — сравнение колонки с числом.",
+     "id": "pd_filter.7",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"title\": [\"Hope\", \"Raven\"], \"lines\": [12, 108]})",
+      "short = df[]",
+      "print(short[\"title\"].tolist())"
+     ],
+     "gapLine": 2,
+     "before": "short = df[",
+     "after": "]",
+     "answer": "df[\"lines\"] < 50",
+     "expected": "['Hope']"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: все названия заглавными буквами.",
+     "why": "Методы строк для колонки вызывают через `.str`.",
+     "id": "pd_filter.8",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"title\": [\"hope\", \"raven\"]})",
+      "df[\"title\"] = df[\"title\"]",
+      "print(df[\"title\"].tolist())"
+     ],
+     "gapLine": 2,
+     "before": "df[\"title\"] = df[\"title\"]",
+     "after": "",
+     "answer": ".str.upper()",
+     "expected": "['HOPE', 'RAVEN']"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `long_titles(df, n)`: названия стихотворений, у которых больше `n` строк. В таблице колонки `\"title\"` и `\"lines\"`.",
+     "starter": "import pandas as pd\n\n\ndef long_titles(df, n):\n    # твой код\n    pass",
+     "solution": "import pandas as pd\n\n\ndef long_titles(df, n):\n    return df[df[\"lines\"] > n][\"title\"].tolist()",
+     "tests": [
+      "long_titles(pd.DataFrame({\"title\": [\"A\", \"B\"], \"lines\": [5, 50]}), 10)",
+      "long_titles(pd.DataFrame({\"title\": [\"A\"], \"lines\": [5]}), 10)"
+     ],
+     "hints": [
+      "Отфильтруй строки маской `df[\"lines\"] > n`.",
+      "Из результата возьми колонку `\"title\"` и `tolist()`.",
+      "`return df[df[\"lines\"] > n][\"title\"].tolist()`"
+     ],
+     "setup": "",
+     "id": "pd_filter.9",
+     "testsPy": "_TESTS = [('long_titles(pd.DataFrame({\"title\": [\"A\", \"B\"], \"lines\": [5, 50]}), 10)', \"['B']\"), ('long_titles(pd.DataFrame({\"title\": [\"A\"], \"lines\": [5]}), 10)', '[]')]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `add_words(df)`: добавь колонку `\"words\"` — число слов в колонке `\"line\"` — и верни таблицу.",
+     "starter": "import pandas as pd\n\n\ndef add_words(df):\n    # твой код\n    return df",
+     "solution": "import pandas as pd\n\n\ndef add_words(df):\n    df[\"words\"] = df[\"line\"].str.split().str.len()\n    return df",
+     "tests": [
+      "add_words(pd.DataFrame({\"line\": [\"a b\", \"c\"]}))[\"words\"].tolist()",
+      "add_words(pd.DataFrame({\"line\": [\"one two three\"]}))[\"words\"].tolist()"
+     ],
+     "hints": [
+      "Разбей каждую строку на слова: `df[\"line\"].str.split()`.",
+      "Длину каждого списка даёт ещё один `.str.len()`.",
+      "`df[\"words\"] = df[\"line\"].str.split().str.len()`, потом `return df`."
+     ],
+     "setup": "",
+     "id": "pd_filter.10",
+     "testsPy": "_TESTS = [('add_words(pd.DataFrame({\"line\": [\"a b\", \"c\"]}))[\"words\"].tolist()', '[2, 1]'), ('add_words(pd.DataFrame({\"line\": [\"one two three\"]}))[\"words\"].tolist()', '[3]')]\n"
+    }
+   ],
+   "track": "data"
+  },
+  {
+   "id": "pd_group",
+   "title": "pandas: группировка",
+   "diag": [],
+   "intro": "`value_counts()` считает, сколько раз встречается каждое значение, — так смотрят баланс классов. `df.groupby(\"author\")[\"lines\"].mean()` считает среднее отдельно для каждого автора. Результат — Series, где авторы стоят в индексе; `to_dict()` превращает её в словарь.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "import pandas as pd\ndf = pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"]})\nprint(df[\"author\"].value_counts().to_dict())",
+     "why": "`value_counts` считает повторы и ставит самые частые первыми.",
+     "id": "pd_group.1",
+     "expected": "{'Poe': 2, 'Keats': 1}",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×1, колонки: author"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×1, колонки: author"
+         ]
+        ],
+        "out": "{'Poe': 2, 'Keats': 1}\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "import pandas as pd\ndf = pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"], \"lines\": [108, 14, 20]})\nprint(df.groupby(\"author\")[\"lines\"].sum().to_dict())",
+     "why": "Группы отсортированы по названию: сначала Keats. У По 108 + 20 строк.",
+     "id": "pd_group.2",
+     "expected": "{'Keats': 14, 'Poe': 128}",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×2, колонки: author, lines"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×2, колонки: author, lines"
+         ]
+        ],
+        "out": "{'Keats': 14, 'Poe': 128}\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Средняя длина стихотворения у каждого автора.",
+     "why": "`count` считает, сколько записей в группе. Среднее — `mean`.",
+     "id": "pd_group.3",
+     "fixedLine": "print(df.groupby(\"author\")[\"lines\"].mean().to_dict())",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"], \"lines\": [108, 14, 20]})",
+      "print(df.groupby(\"author\")[\"lines\"].count().to_dict())"
+     ],
+     "bugLine": 2,
+     "expected": "{'Keats': 14.0, 'Poe': 64.0}",
+     "actual": "{'Keats': 1, 'Poe': 2}"
+    },
+    {
+     "type": "bug",
+     "task": "Найти самого частого автора.",
+     "why": "`value_counts` сортирует по убыванию: самый частый — первый, `index[0]`.",
+     "id": "pd_group.4",
+     "fixedLine": "print(df[\"author\"].value_counts().index[0])",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"]})",
+      "print(df[\"author\"].value_counts().index[-1])"
+     ],
+     "bugLine": 2,
+     "expected": "Poe",
+     "actual": "Keats"
+    },
+    {
+     "type": "order",
+     "task": "Найти автора с самыми длинными стихами в среднем.",
+     "id": "pd_group.5",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"], \"lines\": [108, 14, 20]})",
+      "avg = df.groupby(\"author\")[\"lines\"].mean()",
+      "best = avg.idxmax()",
+      "print(best, avg[best])"
+     ],
+     "expected": "Poe 64.0",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Посчитать доли классов в разметке.",
+     "id": "pd_group.6",
+     "lines": [
+      "import pandas as pd",
+      "labels = pd.Series([\"joy\", \"sad\", \"joy\", \"joy\"])",
+      "share = labels.value_counts(normalize=True)",
+      "print(share.to_dict())"
+     ],
+     "expected": "{'joy': 0.75, 'sad': 0.25}",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши, по какой колонке группировать.",
+     "why": "Группируем по автору: `groupby(\"author\")`.",
+     "id": "pd_group.7",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"], \"lines\": [108, 14, 20]})",
+      "print(df.groupby()[\"lines\"].max().to_dict())"
+     ],
+     "gapLine": 2,
+     "before": "print(df.groupby(",
+     "after": ")[\"lines\"].max().to_dict())",
+     "answer": "\"author\"",
+     "expected": "{'Keats': 14, 'Poe': 108}"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: сколько раз встречается каждый автор.",
+     "why": "Повторы считает `value_counts()`.",
+     "id": "pd_group.8",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"]})",
+      "print(df[\"author\"].to_dict())"
+     ],
+     "gapLine": 2,
+     "before": "print(df[\"author\"]",
+     "after": ".to_dict())",
+     "answer": ".value_counts()",
+     "expected": "{'Poe': 2, 'Keats': 1}"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `poems_per_author(df)`: словарь «автор → число стихотворений».",
+     "starter": "import pandas as pd\n\n\ndef poems_per_author(df):\n    # твой код\n    pass",
+     "solution": "import pandas as pd\n\n\ndef poems_per_author(df):\n    return df[\"author\"].value_counts().to_dict()",
+     "tests": [
+      "poems_per_author(pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"]}))",
+      "poems_per_author(pd.DataFrame({\"author\": [\"Blake\"]}))"
+     ],
+     "hints": [
+      "Повторы в колонке считает `value_counts()`.",
+      "В словарь превращает `to_dict()`.",
+      "`return df[\"author\"].value_counts().to_dict()`"
+     ],
+     "setup": "",
+     "id": "pd_group.9",
+     "testsPy": "_TESTS = [('poems_per_author(pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"]}))', \"{'Poe': 2, 'Keats': 1}\"), ('poems_per_author(pd.DataFrame({\"author\": [\"Blake\"]}))', \"{'Blake': 1}\")]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `mean_lines(df)`: словарь «автор → средняя длина», округлённая до одного знака.",
+     "starter": "import pandas as pd\n\n\ndef mean_lines(df):\n    # твой код\n    pass",
+     "solution": "import pandas as pd\n\n\ndef mean_lines(df):\n    return df.groupby(\"author\")[\"lines\"].mean().round(1).to_dict()",
+     "tests": [
+      "mean_lines(pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"], \"lines\": [108, 14, 20]}))",
+      "mean_lines(pd.DataFrame({\"author\": [\"A\", \"A\", \"A\"], \"lines\": [1, 2, 2]}))"
+     ],
+     "hints": [
+      "Группируй по автору и бери колонку `\"lines\"`.",
+      "Среднее — `mean()`, округление — `round(1)`.",
+      "`return df.groupby(\"author\")[\"lines\"].mean().round(1).to_dict()`"
+     ],
+     "setup": "",
+     "id": "pd_group.10",
+     "testsPy": "_TESTS = [('mean_lines(pd.DataFrame({\"author\": [\"Poe\", \"Keats\", \"Poe\"], \"lines\": [108, 14, 20]}))', \"{'Keats': 14.0, 'Poe': 64.0}\"), ('mean_lines(pd.DataFrame({\"author\": [\"A\", \"A\", \"A\"], \"lines\": [1, 2, 2]}))', \"{'A': 1.7}\")]\n"
+    }
+   ],
+   "track": "data"
+  },
+  {
+   "id": "pd_clean",
+   "title": "pandas: чистка данных",
+   "diag": [],
+   "intro": "В настоящих данных бывают пропуски (NaN), повторы и лишние пробелы. `isna().sum()` считает пропуски, `dropna()` убирает строки с ними, `fillna(0)` заполняет. `drop_duplicates()` убирает повторы, `astype(int)` меняет тип. Эти методы возвращают новую таблицу — результат нужно присвоить.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "import pandas as pd\ns = pd.Series([12, None, 24])\nprint(s.isna().sum(), s.fillna(0).tolist())",
+     "why": "Пропуск один. Из-за пропуска колонка стала дробной, поэтому и после заполнения числа дробные.",
+     "id": "pd_clean.1",
+     "expected": "1 [12.0, 0.0, 24.0]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "s",
+          "колонка: [12.0, nan, 24.0]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "s",
+          "колонка: [12.0, nan, 24.0]"
+         ]
+        ],
+        "out": "1 [12.0, 0.0, 24.0]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "import pandas as pd\ndf = pd.DataFrame({\"title\": [\"Hope\", \"Hope\", \"Raven\"]})\nprint(len(df), len(df.drop_duplicates()))",
+     "why": "`drop_duplicates` убирает строки, полностью совпадающие с более ранними.",
+     "id": "pd_clean.2",
+     "expected": "3 2",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×1, колонки: title"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "df",
+          "таблица 3×1, колонки: title"
+         ]
+        ],
+        "out": "3 2\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Убрать строки с пропусками.",
+     "why": "`dropna` не меняет таблицу, а возвращает новую. Её нужно сохранить: `df = df.dropna()`.",
+     "id": "pd_clean.3",
+     "fixedLine": "df = df.dropna()",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"title\": [\"Hope\", None, \"Raven\"]})",
+      "df.dropna()",
+      "print(len(df))"
+     ],
+     "bugLine": 2,
+     "expected": "2",
+     "actual": "3"
+    },
+    {
+     "type": "bug",
+     "task": "Привести названия к одному виду и посчитать разные.",
+     "why": "Без `strip()` пробелы по краям остаются, и « hope» и «hope » считаются разными.",
+     "id": "pd_clean.4",
+     "fixedLine": "clean = s.str.strip().str.lower()",
+     "lines": [
+      "import pandas as pd",
+      "s = pd.Series([\" Hope\", \"hope \", \"HOPE\"])",
+      "clean = s.str.lower()",
+      "print(clean.nunique())"
+     ],
+     "bugLine": 2,
+     "expected": "1",
+     "actual": "3"
+    },
+    {
+     "type": "order",
+     "task": "Заполнить пропуск средним значением.",
+     "id": "pd_clean.5",
+     "lines": [
+      "import pandas as pd",
+      "s = pd.Series([10, None, 20])",
+      "mean = s.mean()",
+      "s = s.fillna(mean)",
+      "print(s.tolist())"
+     ],
+     "expected": "[10.0, 15.0, 20.0]",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Превратить строки в числа и посчитать.",
+     "id": "pd_clean.6",
+     "lines": [
+      "import pandas as pd",
+      "s = pd.Series([\"12\", \"108\", \"24\"])",
+      "n = s.astype(int)",
+      "print(n.sum(), n.max())"
+     ],
+     "expected": "144 108",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: заполни пропуски нулями.",
+     "why": "Заполняет пропуски `fillna(значение)`.",
+     "id": "pd_clean.7",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"lines\": [12, None, 24]})",
+      "df[\"lines\"] = df[\"lines\"]",
+      "print(df[\"lines\"].tolist())"
+     ],
+     "gapLine": 2,
+     "before": "df[\"lines\"] = df[\"lines\"]",
+     "after": "",
+     "answer": ".fillna(0)",
+     "expected": "[12.0, 0.0, 24.0]"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: убери повторяющиеся строки.",
+     "why": "Повторы убирает `drop_duplicates()`.",
+     "id": "pd_clean.8",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"title\": [\"Hope\", \"Hope\", \"Raven\"], \"lines\": [12, 12, 108]})",
+      "df = df",
+      "print(df.shape)"
+     ],
+     "gapLine": 2,
+     "before": "df = df",
+     "after": "",
+     "answer": ".drop_duplicates()",
+     "expected": "(2, 2)"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `clean_titles(titles)`: названия без пробелов по краям, строчными буквами, без повторов, в исходном порядке. Сделай через `pd.Series`.",
+     "starter": "import pandas as pd\n\n\ndef clean_titles(titles):\n    # твой код\n    pass",
+     "solution": "import pandas as pd\n\n\ndef clean_titles(titles):\n    s = pd.Series(titles).str.strip().str.lower()\n    return s.drop_duplicates().tolist()",
+     "tests": [
+      "clean_titles([\" Hope\", \"hope\", \"Raven \"])",
+      "clean_titles([\"A\"])"
+     ],
+     "hints": [
+      "Сделай Series из списка и почисти: `.str.strip().str.lower()`.",
+      "Повторы убирает `drop_duplicates()`, порядок сохраняется.",
+      "`return pd.Series(titles).str.strip().str.lower().drop_duplicates().tolist()`"
+     ],
+     "setup": "",
+     "id": "pd_clean.9",
+     "testsPy": "_TESTS = [('clean_titles([\" Hope\", \"hope\", \"Raven \"])', \"['hope', 'raven']\"), ('clean_titles([\"A\"])', \"['a']\")]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `missing_share(values)`: доля пропусков (None) в списке, округлённая до двух знаков.",
+     "starter": "import pandas as pd\n\n\ndef missing_share(values):\n    # твой код\n    pass",
+     "solution": "import pandas as pd\n\n\ndef missing_share(values):\n    return round(float(pd.Series(values).isna().mean()), 2)",
+     "tests": [
+      "missing_share([1, None, 3, None])",
+      "missing_share([1, 2])",
+      "missing_share([None, 1, 2])"
+     ],
+     "hints": [
+      "`isna()` даёт маску пропусков.",
+      "Доля True — среднее маски: `.mean()`.",
+      "`return round(float(pd.Series(values).isna().mean()), 2)`"
+     ],
+     "setup": "",
+     "id": "pd_clean.10",
+     "testsPy": "_TESTS = [('missing_share([1, None, 3, None])', '0.5'), ('missing_share([1, 2])', '0.0'), ('missing_share([None, 1, 2])', '0.33')]\n"
+    }
+   ],
+   "track": "data"
   }
  ],
  "errors": {

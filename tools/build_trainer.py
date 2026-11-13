@@ -1,4 +1,5 @@
-"""Builds python-trainer.js: the Python trainer (14 topics, 190 tasks) and the error guide.
+"""Builds python-trainer.js: the Python trainer (14 topics, 190 tasks), NumPy and pandas (7 topics, 70 tasks)
+and the error guide.
 
 Every task is checked by running it in regular Python (the browser uses Pyodide with
 the same Python 3.13):
@@ -21,6 +22,9 @@ import sys
 import tempfile
 import traceback
 import types
+import warnings
+
+warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 GAP = re.compile(r"⟦(.+?)⟧")
@@ -31,7 +35,11 @@ _res = []
 for _call, _exp in _TESTS:
     try:
         _got = eval(_call)
-        _res.append([_call, repr(_got), _got == eval(_exp), _exp])
+        try:
+            _ok = bool(_got == eval(_exp))   # np.bool_ -> bool; an array or Series raises -> not equal
+        except Exception:
+            _ok = False
+        _res.append([_call, repr(_got), _ok, _exp])
     except Exception as _e:
         _res.append([_call, type(_e).__name__ + ": " + str(_e), False, _exp])
 print("@@RESULTS@@" + _json.dumps(_res, ensure_ascii=False))
@@ -87,8 +95,8 @@ def W(task, starter, solution, tests, hints, setup=""):
 TOPICS = []
 
 
-def topic(tid, title, diag, intro, tasks):
-    TOPICS.append({"id": tid, "title": title, "diag": diag, "intro": intro, "tasks": tasks})
+def topic(tid, title, diag, intro, tasks, track="py"):
+    TOPICS.append({"id": tid, "title": title, "diag": diag, "intro": intro, "tasks": tasks, "track": track})
 
 
 # ---------- content ----------
@@ -893,14 +901,17 @@ with open("poem2.txt", "w", encoding="utf-8") as f:
 # ---------- more content (tools/trainer_more.py) ----------
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import trainer_data  # noqa: E402
 import trainer_more  # noqa: E402
 
 trainer_more.add_content(topic, P, B, O, F, W)
+trainer_data.add_data(topic, P, B, O, F, W)
 _EXTRA = trainer_more.extra_tasks(P, B, O, F, W)
 for _tp in TOPICS:
     _tp["tasks"].extend(_EXTRA.get(_tp["id"], []))
 ORDER = ["basics", "strings", "formatting", "lists", "conditions", "loops", "zipenum", "dicts", "nested",
-         "functions", "sorting", "comprehensions", "errors", "classes"]
+         "functions", "sorting", "comprehensions", "errors", "classes",
+         "np_arrays", "np_index", "np_agg", "pd_frame", "pd_filter", "pd_group", "pd_clean"]
 assert sorted(ORDER) == sorted(tp["id"] for tp in TOPICS)
 TOPICS.sort(key=lambda tp: ORDER.index(tp["id"]))
 
@@ -917,6 +928,17 @@ def short_value(v):
         return "функция"
     if isinstance(v, type):
         return "класс"
+    mod = type(v).__module__.split(".")[0]
+    if mod == "numpy" and hasattr(v, "tolist"):
+        if getattr(v, "ndim", 0) == 0:
+            return str(v)
+        r = "массив " + "×".join(map(str, v.shape)) + ": " + repr(v.tolist())
+        return r if len(r) <= 60 else r[:57] + "..."
+    if mod == "pandas" and type(v).__name__ == "DataFrame":
+        return "таблица %d×%d, колонки: %s" % (v.shape[0], v.shape[1], ", ".join(map(str, v.columns)))
+    if mod == "pandas" and type(v).__name__ == "Series":
+        r = "колонка: " + repr(v.tolist())
+        return r if len(r) <= 60 else r[:57] + "..."
     if type(v).__module__ == "__main__" and hasattr(v, "__dict__"):
         fields = ", ".join("%s=%r" % kv for kv in vars(v).items())
         r = "%s(%s)" % (type(v).__name__, fields)
@@ -1180,7 +1202,15 @@ def main():
         tasks = [build_task(t, tp["id"], i) for i, t in enumerate(tp["tasks"])]
         for t in tasks:
             counts[t["type"]] = counts.get(t["type"], 0) + 1
-        topics.append({"id": tp["id"], "title": tp["title"], "diag": tp["diag"], "intro": tp["intro"], "tasks": tasks})
+        if tp["track"] == "data":
+            for task in tasks:
+                for key in ("expected", "actual"):
+                    text = task.get(key) or ""
+                    if key == "actual" and task.get("actualError"):
+                        continue
+                    assert not re.search(r"dtype|np\.\w+\(|object at", text), (task["id"], key, text)
+        topics.append({"id": tp["id"], "title": tp["title"], "diag": tp["diag"], "intro": tp["intro"], "tasks": tasks,
+                       "track": tp["track"]})
     data = {"harness": HARNESS, "topics": topics, "errors": build_errors()}
     js = ("// Создано tools/build_trainer.py: каждая задача проверена запуском в Python 3.13.\n"
           "window.PYTRAINER = " + json.dumps(data, ensure_ascii=False, indent=1) + ";\n")

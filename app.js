@@ -1184,7 +1184,7 @@
     });
     h += '</div>';
     if (done) {
-      h += '<p class="why"><strong>' + (m.picked === b.bugLine ? 'Верно.' : 'Ответ.') + '</strong> ' + esc(b.why) + '</p>';
+      h += '<p class="why"><strong>' + (m.picked === b.bugLine ? 'Верно.' : 'Ответ.') + '</strong> ' + fmt(b.why) + '</p>';
       h += '<p class="code-label">Исправленная строка</p><pre><code>' + esc(b.fixedLine) + '</code></pre>';
     } else if (m.wrong && m.wrong.length) {
       h += '<p class="run-diff">Не эта строка. Попробуй ещё.</p>';
@@ -2122,6 +2122,23 @@
   }
 
   // Порядок тем: сначала слабые по диагностике, потом остальные
+  function pyTrack(tp) { return tp.track === "data" ? "data" : "py"; }
+  function pyShare(track) {
+    var s = pyState(), all = 0, done = 0;
+    PT().topics.forEach(function (tp) {
+      if (pyTrack(tp) !== track) return;
+      tp.tasks.forEach(function (t) { all++; if (s.done[t.id]) done++; });
+    });
+    return all ? done / all : 0;
+  }
+  // NumPy и pandas попадают в разминку, когда решено 70% задач Python или ты сам начал эти темы
+  function dataOpen() {
+    var s = pyState();
+    return pyShare("py") >= 0.7 || PT().topics.some(function (tp) {
+      return pyTrack(tp) === "data" && tp.tasks.some(function (t) { return s.done[t.id]; });
+    });
+  }
+
   function pyTopicsOrdered() {
     var all = PT().topics.slice();
     return all.filter(pyWeak).concat(all.filter(function (tp) { return !pyWeak(tp); }));
@@ -2132,9 +2149,17 @@
     if (s.daily.date !== today) {
       var ids = Object.keys(s.review).filter(function (id) { return s.review[id].due <= today && pyTask(id); })
         .sort(function (x, y) { return s.review[x].due < s.review[y].due ? -1 : 1; }).slice(0, 3);
-      pyTopicsOrdered().forEach(function (tp) {
-        tp.tasks.forEach(function (t) { if (ids.length < 5 && !s.done[t.id] && ids.indexOf(t.id) === -1) ids.push(t.id); });
-      });
+      // Новые задачи: Python, а когда открыты NumPy и pandas — две из пяти оттуда
+      var open = dataOpen();
+      function take(track, limit) {
+        pyTopicsOrdered().forEach(function (tp) {
+          if (pyTrack(tp) !== track) return;
+          tp.tasks.forEach(function (t) { if (ids.length < limit && !s.done[t.id] && ids.indexOf(t.id) === -1) ids.push(t.id); });
+        });
+      }
+      if (open) take("data", Math.min(5, ids.length + 2));
+      take("py", 5);
+      if (open) take("data", 5);
       if (ids.length < 5) {
         Object.keys(s.done).forEach(function (id) { if (ids.length < 5 && ids.indexOf(id) === -1 && pyTask(id)) ids.push(id); });
       }
@@ -2179,15 +2204,28 @@
       return '<a class="link" href="#python/' + tp.id + '">' + esc(tp.title.toLowerCase()) + '</a>'; }).join(', ') + '.</p>';
     var due = Object.keys(s.review).filter(function (id) { return s.review[id].due <= today; }).length;
     if (due) h += '<p class="hint">Пора повторить задач: ' + due + '. Они попадут в разминку.</p>';
-    h += '<section class="panel"><h2>Темы</h2><ul class="py-topics">';
-    pyTopicsOrdered().forEach(function (tp) {
-      var n = pyTopicDone(tp);
-      h += '<li><a href="#python/' + tp.id + '"><span class="py-topic-title">' + esc(tp.title) +
-        (pyWeak(tp) ? ' <span class="py-weak">подтянуть</span>' : '') + '</span>' +
-        '<span class="py-topic-meta">' + n + ' из ' + tp.tasks.length + '</span></a>' +
-        bar(Math.round(n / tp.tasks.length * 100), 'Решено задач в теме') + '</li>';
-    });
-    h += '</ul></section>';
+    function topicList(track) {
+      var out = '<ul class="py-topics">';
+      pyTopicsOrdered().forEach(function (tp) {
+        if (pyTrack(tp) !== track) return;
+        var n = pyTopicDone(tp);
+        out += '<li><a href="#python/' + tp.id + '"><span class="py-topic-title">' + esc(tp.title) +
+          (pyWeak(tp) ? ' <span class="py-weak">подтянуть</span>' : '') + '</span>' +
+          '<span class="py-topic-meta">' + n + ' из ' + tp.tasks.length + '</span></a>' +
+          bar(Math.round(n / tp.tasks.length * 100), 'Решено задач в теме') + '</li>';
+      });
+      return out + '</ul>';
+    }
+    h += '<section class="panel"><h2>Python</h2>' + topicList("py") + '</section>';
+    if (PT().topics.some(function (tp) { return pyTrack(tp) === "data"; })) {
+      var share = Math.round(pyShare("py") * 100);
+      h += '<section class="panel" id="py-data"><h2>NumPy и pandas</h2>';
+      h += '<p class="hint">На этом стоят проекты 1–2: таблицы стихов, подсчёты, метрики. ' +
+        (dataOpen() ? 'Эти задачи уже попадают в разминку.' : 'Лучше браться, когда решено около 70% задач Python, сейчас ' + share + '%. ' +
+          'Тогда они сами начнут попадать в разминку; начать можно и раньше.') +
+        ' Первый запуск загружает pandas в браузер, это 10–20 секунд.</p>';
+      h += topicList("data") + '</section>';
+    }
     h += '<a class="next continue-card" href="#python/errors"><span class="next-label">Справочник</span><span class="next-text">Разбор типичных ошибок Python</span>' +
       '<span class="next-meta">Как читать сообщение об ошибке и что делать с каждой</span></a>';
     app.innerHTML = h;
@@ -2198,6 +2236,7 @@
     var h = '<a class="back" href="#python">← Тренажёр</a>';
     h += '<header class="phead"><p class="eyebrow">Тема' + (pyWeak(tp) ? ' · по диагностике стоит подтянуть' : '') + '</p><h1>' + esc(tp.title) + '</h1>';
     h += '<p class="lead">' + fmt(tp.intro) + '</p>';
+    if (pyTrack(tp) === "data") h += '<p class="hint">Код запускается в браузере с NumPy и pandas. Первый запуск дольше обычного: библиотеки загружаются один раз.</p>';
     var n = pyTopicDone(tp);
     h += bar(Math.round(n / tp.tasks.length * 100), 'Решено задач') + '<p class="hint">Решено ' + n + ' из ' + tp.tasks.length + '</p></header>';
     STEP_ORDER.forEach(function (kind, k) {
@@ -2497,6 +2536,7 @@
   function unquote(r) { return reprKind(r) === "str" ? r.slice(1, -1) : r; }
 
   function diagnoseTest(got, exp, printed) {
+    got = String(got).replace(/np\.\w+\(([^()]*)\)/g, "$1");   // np.float64(0.5) → 0.5
     var err = /^([A-Z]\w*(Error|Exception))\b/.exec(got);
     if (err) {
       var name = err[1];
