@@ -1,5 +1,5 @@
-"""Builds python-trainer.js: the Python trainer (14 topics, 190 tasks), NumPy and pandas (7 topics, 70 tasks)
-and the error guide.
+"""Builds python-trainer.js: the Python trainer (14 topics, 190 tasks), NumPy and pandas (7 topics, 70 tasks),
+scikit-learn (5 topics, 50 tasks) and the error guide.
 
 Every task is checked by running it in regular Python (the browser uses Pyodide with
 the same Python 3.13):
@@ -46,15 +46,22 @@ print("@@RESULTS@@" + _json.dumps(_res, ensure_ascii=False))
 '''
 
 
+WARNED = [[]]
+
+
 def run(code):
-    """Run code in a fresh folder. Returns (stdout, error line or None)."""
+    """Run code in a fresh folder. Returns (stdout, error line or None); warnings of a successful run go to WARNED[0]."""
+    WARNED[0] = []
     out = io.StringIO()
     old = os.getcwd()
     with tempfile.TemporaryDirectory() as tmp:
         os.chdir(tmp)
         try:
-            with contextlib.redirect_stdout(out):
+            with contextlib.redirect_stdout(out), warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
                 exec(compile(code, "<task>", "exec"), {"__name__": "__main__"})
+            # The browser prints warnings into the same output, so a warning would break the comparison
+            WARNED[0] = [str(w.message) for w in caught if not issubclass(w.category, SyntaxWarning)]
             err = None
         except SyntaxError as e:
             err = "%s: %s" % (type(e).__name__, e.msg)
@@ -902,16 +909,19 @@ with open("poem2.txt", "w", encoding="utf-8") as f:
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import trainer_data  # noqa: E402
+import trainer_ml  # noqa: E402
 import trainer_more  # noqa: E402
 
 trainer_more.add_content(topic, P, B, O, F, W)
 trainer_data.add_data(topic, P, B, O, F, W)
+trainer_ml.add_ml(topic, P, B, O, F, W)
 _EXTRA = trainer_more.extra_tasks(P, B, O, F, W)
 for _tp in TOPICS:
     _tp["tasks"].extend(_EXTRA.get(_tp["id"], []))
 ORDER = ["basics", "strings", "formatting", "lists", "conditions", "loops", "zipenum", "dicts", "nested",
          "functions", "sorting", "comprehensions", "errors", "classes",
-         "np_arrays", "np_index", "np_agg", "pd_frame", "pd_filter", "pd_group", "pd_clean"]
+         "np_arrays", "np_index", "np_agg", "pd_frame", "pd_filter", "pd_group", "pd_clean",
+         "sk_split", "sk_fit", "sk_metrics", "sk_text", "sk_pipe"]
 assert sorted(ORDER) == sorted(tp["id"] for tp in TOPICS)
 TOPICS.sort(key=lambda tp: ORDER.index(tp["id"]))
 
@@ -929,6 +939,10 @@ def short_value(v):
     if isinstance(v, type):
         return "класс"
     mod = type(v).__module__.split(".")[0]
+    if mod == "scipy" and hasattr(v, "shape"):
+        return "разреженная матрица %d×%d" % v.shape
+    if mod == "sklearn":
+        return type(v).__name__ + " (модель)" if not hasattr(v, "steps") else "Pipeline: " + ", ".join(n for n, _ in v.steps)
     if mod == "numpy" and hasattr(v, "tolist"):
         if getattr(v, "ndim", 0) == 0:
             return str(v)
@@ -952,6 +966,8 @@ def snapshot(names):
     for k, v in list(names.items()):
         if k.startswith("__") or k.startswith("."):
             continue
+        if (isinstance(v, type) or callable(v)) and getattr(v, "__module__", "__main__") != "__main__":
+            continue  # imported functions and classes: from sklearn... import ...
         s = short_value(v)
         if s is not None:
             out.append([k, s])
@@ -1127,6 +1143,7 @@ def build_task(t, tid, i):
     if kind == "predict":
         out, err = run(t["code"])
         assert err is None, (task["id"], err)
+        assert not WARNED[0], (task["id"], "warning", WARNED[0])
         task["expected"] = norm(out)
         task["trace"] = trace(t["code"])
         assert task["trace"]["steps"][-1]["out"] == out, task["id"]
@@ -1134,6 +1151,7 @@ def build_task(t, tid, i):
         lines = t["code"].split("\n")
         out, err = run(t["code"])
         assert err is None, (task["id"], err)
+        assert not WARNED[0], (task["id"], "warning", WARNED[0])
         broken = lines[:]
         assert broken[t["line"]] != t["broken"], task["id"]
         task["fixedLine"] = broken[t["line"]]
@@ -1154,6 +1172,7 @@ def build_task(t, tid, i):
         assert len(lines) <= 7, task["id"]
         out, err = run("\n".join(lines))
         assert err is None, (task["id"], err)
+        assert not WARNED[0], (task["id"], "warning", WARNED[0])
         valid = []
         for perm in itertools.permutations(range(len(lines))):
             pout, perr = run("\n".join(lines[j] for j in perm))
@@ -1169,6 +1188,7 @@ def build_task(t, tid, i):
         full = GAP.sub(lambda m: m.group(1), t["code"])
         out, err = run(full)
         assert err is None, (task["id"], err)
+        assert not WARNED[0], (task["id"], "warning", WARNED[0])
         empty_out, empty_err = run(GAP.sub("None", t["code"]))
         assert empty_err or norm(empty_out) != norm(out), (task["id"], "gap is not needed")
         lines = t["code"].split("\n")
@@ -1184,6 +1204,7 @@ def build_task(t, tid, i):
     elif kind == "write":
         res, err = run_tests(t["solution"], t["setup"], t["tests"])
         assert err is None and all(r[2] for r in res), (task["id"], err, res)
+        assert not WARNED[0], (task["id"], "warning", WARNED[0])
         res, err = run_tests(t["starter"], t["setup"], t["tests"])
         assert err or not all(r[2] for r in res), (task["id"], "starter passes")
         assert len(t["hints"]) == 3, task["id"]
@@ -1202,7 +1223,7 @@ def main():
         tasks = [build_task(t, tp["id"], i) for i, t in enumerate(tp["tasks"])]
         for t in tasks:
             counts[t["type"]] = counts.get(t["type"], 0) + 1
-        if tp["track"] == "data":
+        if tp["track"] in ("data", "ml"):
             for task in tasks:
                 for key in ("expected", "actual"):
                     text = task.get(key) or ""

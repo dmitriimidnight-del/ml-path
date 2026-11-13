@@ -7726,6 +7726,1987 @@ window.PYTRAINER = {
     }
    ],
    "track": "data"
+  },
+  {
+   "id": "sk_split",
+   "title": "Данные: X, y и разбиение",
+   "diag": [],
+   "intro": "В scikit-learn данные — это `X` и `y`. `X` — таблица признаков: строка — один пример, столбец — один признак, поэтому даже один признак пишут как `[[14], [8]]`. `y` — ответы, по одному на пример. Модель учится на обучающей части и проверяется на тестовой, которую не видела: `train_test_split(X, y, test_size=0.25, random_state=0)`. `random_state` делает разбиение одинаковым при каждом запуске, `stratify=y` сохраняет доли классов.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "from sklearn.model_selection import train_test_split\nX = [[1], [2], [3], [4], [5], [6], [7], [8]]\ny = [0, 0, 0, 0, 1, 1, 1, 1]\nX_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.25, random_state=0)\nprint(len(X_tr), len(X_te))",
+     "why": "`test_size=0.25` — четверть данных в тест: 2 из 8.",
+     "id": "sk_split.1",
+     "expected": "6 2",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[1], [2], [3], [4], [5], [6], [7], [8]]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 3,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[1], [2], [3], [4], [5], [6], [7], [8]]"
+         ],
+         [
+          "y",
+          "[0, 0, 0, 0, 1, 1, 1, 1]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 4,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[1], [2], [3], [4], [5], [6], [7], [8]]"
+         ],
+         [
+          "y",
+          "[0, 0, 0, 0, 1, 1, 1, 1]"
+         ],
+         [
+          "X_tr",
+          "[[2], [8], [4], [1], [6], [5]]"
+         ],
+         [
+          "X_te",
+          "[[7], [3]]"
+         ],
+         [
+          "y_tr",
+          "[0, 1, 0, 0, 1, 1]"
+         ],
+         [
+          "y_te",
+          "[1, 0]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[1], [2], [3], [4], [5], [6], [7], [8]]"
+         ],
+         [
+          "y",
+          "[0, 0, 0, 0, 1, 1, 1, 1]"
+         ],
+         [
+          "X_tr",
+          "[[2], [8], [4], [1], [6], [5]]"
+         ],
+         [
+          "X_te",
+          "[[7], [3]]"
+         ],
+         [
+          "y_tr",
+          "[0, 1, 0, 0, 1, 1]"
+         ],
+         [
+          "y_te",
+          "[1, 0]"
+         ]
+        ],
+        "out": "6 2\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "import numpy as np\nX = np.array([[14, 3], [8, 2], [20, 5]])\ny = np.array([1, 0, 1])\nprint(X.shape, y.shape, X[:, 1].tolist())",
+     "why": "`X` — 3 примера по 2 признака, `y` — 3 ответа. `X[:, 1]` — второй признак у всех примеров.",
+     "id": "sk_split.2",
+     "expected": "(3, 2) (3,) [3, 2, 5]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "массив 3×2: [[14, 3], [8, 2], [20, 5]]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 3,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "массив 3×2: [[14, 3], [8, 2], [20, 5]]"
+         ],
+         [
+          "y",
+          "массив 3: [1, 0, 1]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "массив 3×2: [[14, 3], [8, 2], [20, 5]]"
+         ],
+         [
+          "y",
+          "массив 3: [1, 0, 1]"
+         ]
+        ],
+        "out": "(3, 2) (3,) [3, 2, 5]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Разделить данные и проверить, что в обучающей части признаков и ответов поровну.",
+     "why": "`train_test_split` возвращает части в порядке: X_train, X_test, y_train, y_test. Перепутанные имена — частая и тихая ошибка.",
+     "id": "sk_split.3",
+     "fixedLine": "X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=1)",
+     "lines": [
+      "from sklearn.model_selection import train_test_split",
+      "X = [[i] for i in range(10)]",
+      "y = [0] * 5 + [1] * 5",
+      "X_tr, y_tr, X_te, y_te = train_test_split(X, y, test_size=0.2, random_state=1)",
+      "print(len(X_tr), len(y_tr))"
+     ],
+     "bugLine": 3,
+     "expected": "8 8",
+     "actual": "8 2"
+    },
+    {
+     "type": "bug",
+     "task": "Разделить пополам так, чтобы в тест попал один из двух примеров редкого класса.",
+     "why": "Без `stratify=y` доли классов в частях случайны, и редкий класс может целиком уйти в одну часть.",
+     "id": "sk_split.4",
+     "fixedLine": "_, _, _, y_te = train_test_split(X, y, test_size=0.5, random_state=0, stratify=y)",
+     "lines": [
+      "from sklearn.model_selection import train_test_split",
+      "X = [[i] for i in range(8)]",
+      "y = [0, 0, 0, 0, 0, 0, 1, 1]",
+      "_, _, _, y_te = train_test_split(X, y, test_size=0.5, random_state=0)",
+      "print(sum(y_te))"
+     ],
+     "bugLine": 3,
+     "expected": "1",
+     "actual": "2"
+    },
+    {
+     "type": "order",
+     "task": "Разделить 10 примеров: 30% в тест.",
+     "id": "sk_split.5",
+     "lines": [
+      "from sklearn.model_selection import train_test_split",
+      "X = [[i] for i in range(10)]",
+      "y = [0, 1] * 5",
+      "X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.3, random_state=0)",
+      "print(len(X_tr), len(X_te))"
+     ],
+     "expected": "7 3",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      [
+       0,
+       2,
+       1,
+       3,
+       4
+      ],
+      [
+       1,
+       0,
+       2,
+       3,
+       4
+      ],
+      [
+       1,
+       2,
+       0,
+       3,
+       4
+      ],
+      [
+       2,
+       0,
+       1,
+       3,
+       4
+      ],
+      [
+       2,
+       1,
+       0,
+       3,
+       4
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Взять признаки и ответы из таблицы pandas.",
+     "id": "sk_split.6",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"lines\": [14, 8, 20], \"rhyme\": [1, 0, 1], \"label\": [1, 0, 1]})",
+      "X = df[[\"lines\", \"rhyme\"]]",
+      "y = df[\"label\"]",
+      "print(X.shape, y.tolist())"
+     ],
+     "expected": "(3, 2) [1, 0, 1]",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      [
+       0,
+       1,
+       3,
+       2,
+       4
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши долю теста: 20%.",
+     "why": "Доля теста — число от 0 до 1: `0.2`. Без него берётся 0.25.",
+     "id": "sk_split.7",
+     "lines": [
+      "from sklearn.model_selection import train_test_split",
+      "X = [[i] for i in range(20)]",
+      "y = [0, 1] * 10",
+      "X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=, random_state=0)",
+      "print(len(X_te))"
+     ],
+     "gapLine": 3,
+     "before": "X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=",
+     "after": ", random_state=0)",
+     "answer": "0.2",
+     "expected": "4"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: признаки — колонки lines и rhyme.",
+     "why": "Несколько колонок — список в квадратных скобках, поэтому скобки двойные.",
+     "id": "sk_split.8",
+     "lines": [
+      "import pandas as pd",
+      "df = pd.DataFrame({\"lines\": [14, 8], \"rhyme\": [1, 0], \"label\": [1, 0]})",
+      "X = df",
+      "print(X.shape)"
+     ],
+     "gapLine": 2,
+     "before": "X = df",
+     "after": "",
+     "answer": "[[\"lines\", \"rhyme\"]]",
+     "expected": "(2, 2)"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `train_size(X, y)`: сколько примеров попадёт в обучающую часть при `test_size=0.25` и `random_state=0`.",
+     "starter": "from sklearn.model_selection import train_test_split\n\n\ndef train_size(X, y):\n    # твой код\n    pass",
+     "solution": "from sklearn.model_selection import train_test_split\n\n\ndef train_size(X, y):\n    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.25, random_state=0)\n    return len(X_tr)",
+     "tests": [
+      "train_size([[i] for i in range(8)], [0] * 8)",
+      "train_size([[i] for i in range(10)], [0] * 10)"
+     ],
+     "hints": [
+      "Раздели данные через `train_test_split` с нужными параметрами.",
+      "Обучающие признаки — первая из четырёх частей.",
+      "`X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.25, random_state=0)`, потом `return len(X_tr)`."
+     ],
+     "setup": "",
+     "id": "sk_split.9",
+     "testsPy": "_TESTS = [('train_size([[i] for i in range(8)], [0] * 8)', '6'), ('train_size([[i] for i in range(10)], [0] * 10)', '7')]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `features_and_target(df, target)`: верни пару — список колонок-признаков (все, кроме `target`) и список ответов из колонки `target`.",
+     "starter": "import pandas as pd\n\ndef features_and_target(df, target):\n    # твой код\n    pass",
+     "solution": "import pandas as pd\n\ndef features_and_target(df, target):\n    X = df.drop(columns=[target])\n    y = df[target]\n    return list(X.columns), y.tolist()",
+     "tests": [
+      "features_and_target(pd.DataFrame({\"a\": [1], \"b\": [2], \"label\": [0]}), \"label\")",
+      "features_and_target(pd.DataFrame({\"label\": [1, 0], \"n\": [5, 6]}), \"label\")"
+     ],
+     "hints": [
+      "Признаки — таблица без колонки ответа: `df.drop(columns=[target])`.",
+      "Ответы — колонка `df[target]`.",
+      "`return list(X.columns), y.tolist()`"
+     ],
+     "setup": "",
+     "id": "sk_split.10",
+     "testsPy": "_TESTS = [('features_and_target(pd.DataFrame({\"a\": [1], \"b\": [2], \"label\": [0]}), \"label\")', \"(['a', 'b'], [0])\"), ('features_and_target(pd.DataFrame({\"label\": [1, 0], \"n\": [5, 6]}), \"label\")', \"(['n'], [1, 0])\")]\n"
+    }
+   ],
+   "track": "ml"
+  },
+  {
+   "id": "sk_fit",
+   "title": "fit и predict",
+   "diag": [],
+   "intro": "Любая модель в scikit-learn работает одинаково: создать — `model = KNeighborsClassifier()`, обучить — `model.fit(X_train, y_train)`, предсказать — `model.predict(X_test)`. `model.score(X, y)` у классификатора — точность. Начинай с простой базы: `DummyClassifier` всегда отвечает самым частым классом. Модель, которая не лучше базы, ничему не научилась.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "from sklearn.linear_model import LinearRegression\nX = [[1], [2], [3]]\ny = [2, 4, 6]\nmodel = LinearRegression().fit(X, y)\nprint(model.predict([[10]]).round(1).tolist())",
+     "why": "Модель нашла правило y = 2·x и применила его к 10. `fit` возвращает саму модель, поэтому можно писать в одну строку.",
+     "id": "sk_fit.1",
+     "expected": "[20.0]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[1], [2], [3]]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 3,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[1], [2], [3]]"
+         ],
+         [
+          "y",
+          "[2, 4, 6]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 4,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[1], [2], [3]]"
+         ],
+         [
+          "y",
+          "[2, 4, 6]"
+         ],
+         [
+          "model",
+          "LinearRegression (модель)"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[1], [2], [3]]"
+         ],
+         [
+          "y",
+          "[2, 4, 6]"
+         ],
+         [
+          "model",
+          "LinearRegression (модель)"
+         ]
+        ],
+        "out": "[20.0]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "from sklearn.dummy import DummyClassifier\nX = [[0], [1], [2], [3]]\ny = [\"joy\", \"joy\", \"joy\", \"sad\"]\nbase = DummyClassifier(strategy=\"most_frequent\").fit(X, y)\nprint(base.predict([[5], [6]]).tolist(), base.score(X, y))",
+     "why": "База всегда отвечает самым частым классом и уже угадывает 3 из 4. Твоя модель должна быть лучше 0.75.",
+     "id": "sk_fit.2",
+     "expected": "['joy', 'joy'] 0.75",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[0], [1], [2], [3]]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 3,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[0], [1], [2], [3]]"
+         ],
+         [
+          "y",
+          "['joy', 'joy', 'joy', 'sad']"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 4,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[0], [1], [2], [3]]"
+         ],
+         [
+          "y",
+          "['joy', 'joy', 'joy', 'sad']"
+         ],
+         [
+          "base",
+          "DummyClassifier (модель)"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "X",
+          "[[0], [1], [2], [3]]"
+         ],
+         [
+          "y",
+          "['joy', 'joy', 'joy', 'sad']"
+         ],
+         [
+          "base",
+          "DummyClassifier (модель)"
+         ]
+        ],
+        "out": "['joy', 'joy'] 0.75\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Обучить модель ближайшего соседа и предсказать класс для 9.",
+     "why": "Сначала признаки, потом ответы: `fit(X, y)`. Так во всех моделях scikit-learn.",
+     "id": "sk_fit.3",
+     "fixedLine": "model.fit(X, y)",
+     "lines": [
+      "from sklearn.neighbors import KNeighborsClassifier",
+      "X = [[1], [2], [10], [11]]",
+      "y = [0, 0, 1, 1]",
+      "model = KNeighborsClassifier(n_neighbors=1)",
+      "model.fit(y, X)",
+      "print(model.predict([[9]]).tolist())"
+     ],
+     "bugLine": 4,
+     "expected": "[1]",
+     "actual": "ValueError: Expected 2D array, got 1D array instead:\narray=[0 0 1 1].\nReshape your data either using array.reshape(-1, 1) if your data has a single feature or array.reshape(1, -1) if it contains a single sample.",
+     "actualError": true
+    },
+    {
+     "type": "bug",
+     "task": "Предсказать класс для одного нового примера.",
+     "why": "`predict` ждёт таблицу примеров, даже если пример один: `[[8]]` — один пример с одним признаком.",
+     "id": "sk_fit.4",
+     "fixedLine": "print(model.predict([[8]]).tolist())",
+     "lines": [
+      "from sklearn.neighbors import KNeighborsClassifier",
+      "model = KNeighborsClassifier(n_neighbors=1).fit([[1], [10]], [0, 1])",
+      "print(model.predict([8]).tolist())"
+     ],
+     "bugLine": 2,
+     "expected": "[1]",
+     "actual": "ValueError: Expected 2D array, got 1D array instead:\narray=[8].\nReshape your data either using array.reshape(-1, 1) if your data has a single feature or array.reshape(1, -1) if it contains a single sample.",
+     "actualError": true
+    },
+    {
+     "type": "order",
+     "task": "Обучить дерево решений и предсказать два примера.",
+     "id": "sk_fit.5",
+     "lines": [
+      "from sklearn.tree import DecisionTreeClassifier",
+      "X = [[1], [2], [8], [9]]",
+      "y = [0, 0, 1, 1]",
+      "model = DecisionTreeClassifier(random_state=0)",
+      "model.fit(X, y)",
+      "print(model.predict([[3], [7]]).tolist())"
+     ],
+     "expected": "[0, 1]",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4,
+       5
+      ],
+      [
+       0,
+       1,
+       3,
+       2,
+       4,
+       5
+      ],
+      [
+       0,
+       2,
+       1,
+       3,
+       4,
+       5
+      ],
+      [
+       0,
+       2,
+       3,
+       1,
+       4,
+       5
+      ],
+      [
+       0,
+       3,
+       1,
+       2,
+       4,
+       5
+      ],
+      [
+       0,
+       3,
+       2,
+       1,
+       4,
+       5
+      ],
+      [
+       1,
+       0,
+       2,
+       3,
+       4,
+       5
+      ],
+      [
+       1,
+       0,
+       3,
+       2,
+       4,
+       5
+      ],
+      [
+       1,
+       2,
+       0,
+       3,
+       4,
+       5
+      ],
+      [
+       2,
+       0,
+       1,
+       3,
+       4,
+       5
+      ],
+      [
+       2,
+       0,
+       3,
+       1,
+       4,
+       5
+      ],
+      [
+       2,
+       1,
+       0,
+       3,
+       4,
+       5
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Обучить на одной части и проверить на другой.",
+     "id": "sk_fit.6",
+     "lines": [
+      "from sklearn.neighbors import KNeighborsClassifier",
+      "X_tr, y_tr = [[1], [2], [8], [9]], [0, 0, 1, 1]",
+      "X_te, y_te = [[3], [7]], [0, 0]",
+      "model = KNeighborsClassifier(n_neighbors=1).fit(X_tr, y_tr)",
+      "print(model.score(X_te, y_te))"
+     ],
+     "expected": "0.5",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      [
+       0,
+       1,
+       3,
+       2,
+       4
+      ],
+      [
+       0,
+       2,
+       1,
+       3,
+       4
+      ],
+      [
+       1,
+       0,
+       2,
+       3,
+       4
+      ],
+      [
+       1,
+       0,
+       3,
+       2,
+       4
+      ],
+      [
+       1,
+       2,
+       0,
+       3,
+       4
+      ],
+      [
+       2,
+       0,
+       1,
+       3,
+       4
+      ],
+      [
+       2,
+       1,
+       0,
+       3,
+       4
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши обучение модели.",
+     "why": "Обучение — `fit(X, y)`. После него у модели появляются найденные коэффициенты: y = 2·x + 1.",
+     "id": "sk_fit.7",
+     "lines": [
+      "from sklearn.linear_model import LinearRegression",
+      "X = [[0], [1], [2]]",
+      "y = [1, 3, 5]",
+      "model = LinearRegression()",
+      "model.",
+      "print(round(model.coef_[0], 1), round(model.intercept_, 1))"
+     ],
+     "gapLine": 4,
+     "before": "model.",
+     "after": "",
+     "answer": "fit(X, y)",
+     "expected": "2.0 1.0"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши предсказание для примера 9.",
+     "why": "`predict` принимает таблицу примеров: `[[9]]`.",
+     "id": "sk_fit.8",
+     "lines": [
+      "from sklearn.neighbors import KNeighborsClassifier",
+      "model = KNeighborsClassifier(n_neighbors=1).fit([[1], [10]], [\"sad\", \"joy\"])",
+      "print(model..tolist())"
+     ],
+     "gapLine": 2,
+     "before": "print(model.",
+     "after": ".tolist())",
+     "answer": "predict([[9]])",
+     "expected": "['joy']"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `fit_predict(X_train, y_train, X_new)`: обучи `KNeighborsClassifier(n_neighbors=1)` и верни предсказания для `X_new` списком.",
+     "starter": "from sklearn.neighbors import KNeighborsClassifier\n\ndef fit_predict(X_train, y_train, X_new):\n    # твой код\n    pass",
+     "solution": "from sklearn.neighbors import KNeighborsClassifier\n\ndef fit_predict(X_train, y_train, X_new):\n    model = KNeighborsClassifier(n_neighbors=1)\n    model.fit(X_train, y_train)\n    return model.predict(X_new).tolist()",
+     "tests": [
+      "fit_predict([[1], [10]], [0, 1], [[2], [9]])",
+      "fit_predict([[0], [5]], [\"a\", \"b\"], [[4]])"
+     ],
+     "hints": [
+      "Создай модель с `n_neighbors=1`.",
+      "Обучи: `model.fit(X_train, y_train)`.",
+      "`return model.predict(X_new).tolist()`"
+     ],
+     "setup": "",
+     "id": "sk_fit.9",
+     "testsPy": "_TESTS = [('fit_predict([[1], [10]], [0, 1], [[2], [9]])', '[0, 1]'), ('fit_predict([[0], [5]], [\"a\", \"b\"], [[4]])', \"['b']\")]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `baseline_accuracy(y)`: точность `DummyClassifier(strategy=\"most_frequent\")` на этих же ответах, округлённая до двух знаков. Признаки базе не важны, возьми нули: `[[0]] * len(y)`.",
+     "starter": "from sklearn.dummy import DummyClassifier\n\ndef baseline_accuracy(y):\n    # твой код\n    pass",
+     "solution": "from sklearn.dummy import DummyClassifier\n\ndef baseline_accuracy(y):\n    X = [[0]] * len(y)\n    base = DummyClassifier(strategy=\"most_frequent\").fit(X, y)\n    return round(float(base.score(X, y)), 2)",
+     "tests": [
+      "baseline_accuracy([1, 1, 0])",
+      "baseline_accuracy([0, 0, 0, 1])"
+     ],
+     "hints": [
+      "Сделай признаки-нули той же длины, что `y`.",
+      "Обучи базу и посчитай `score(X, y)`.",
+      "`return round(float(base.score(X, y)), 2)`"
+     ],
+     "setup": "",
+     "id": "sk_fit.10",
+     "testsPy": "_TESTS = [('baseline_accuracy([1, 1, 0])', '0.67'), ('baseline_accuracy([0, 0, 0, 1])', '0.75')]\n"
+    }
+   ],
+   "track": "ml"
+  },
+  {
+   "id": "sk_metrics",
+   "title": "Метрики",
+   "diag": [],
+   "intro": "Точность (accuracy) обманывает, когда один класс редкий: если 90% стихов весёлые, ответ «всегда весёлый» даёт 0.9. Поэтому смотрят precision — какая доля предсказанных положительных верна, recall — какую долю настоящих положительных нашли, и F1 — их среднее. Аргументы всегда в порядке `(y_true, y_pred)`. Для нескольких классов — `average=\"macro\"`. `confusion_matrix` показывает, какие классы с какими путаются.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "from sklearn.metrics import accuracy_score, precision_score, recall_score\ny_true = [1, 1, 0, 0]\ny_pred = [1, 0, 0, 0]\nprint(accuracy_score(y_true, y_pred), precision_score(y_true, y_pred), recall_score(y_true, y_pred))",
+     "why": "Верно 3 из 4. Единицу предсказали один раз и не ошиблись — precision 1.0. Настоящих единиц две, нашли одну — recall 0.5.",
+     "id": "sk_metrics.1",
+     "expected": "0.75 1.0 0.5",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "y_true",
+          "[1, 1, 0, 0]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 3,
+        "scope": "",
+        "vars": [
+         [
+          "y_true",
+          "[1, 1, 0, 0]"
+         ],
+         [
+          "y_pred",
+          "[1, 0, 0, 0]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "y_true",
+          "[1, 1, 0, 0]"
+         ],
+         [
+          "y_pred",
+          "[1, 0, 0, 0]"
+         ]
+        ],
+        "out": "0.75 1.0 0.5\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "from sklearn.metrics import confusion_matrix\ny_true = [1, 1, 0, 0]\ny_pred = [1, 0, 0, 0]\nprint(confusion_matrix(y_true, y_pred).tolist())",
+     "why": "Строки — настоящие классы, столбцы — предсказанные. Оба нуля угаданы, одну единицу приняли за ноль.",
+     "id": "sk_metrics.2",
+     "expected": "[[2, 0], [1, 1]]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "y_true",
+          "[1, 1, 0, 0]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 3,
+        "scope": "",
+        "vars": [
+         [
+          "y_true",
+          "[1, 1, 0, 0]"
+         ],
+         [
+          "y_pred",
+          "[1, 0, 0, 0]"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "y_true",
+          "[1, 1, 0, 0]"
+         ],
+         [
+          "y_pred",
+          "[1, 0, 0, 0]"
+         ]
+        ],
+        "out": "[[2, 0], [1, 1]]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Посчитать precision модели.",
+     "why": "Ошибки нет, но метрика другая: precision и recall поменялись местами. Порядок всегда `(y_true, y_pred)`.",
+     "id": "sk_metrics.3",
+     "fixedLine": "print(precision_score(y_true, y_pred))",
+     "lines": [
+      "from sklearn.metrics import precision_score",
+      "y_true = [1, 1, 1, 0]",
+      "y_pred = [1, 0, 0, 0]",
+      "print(precision_score(y_pred, y_true))"
+     ],
+     "bugLine": 3,
+     "expected": "1.0",
+     "actual": "0.3333333333333333"
+    },
+    {
+     "type": "bug",
+     "task": "Посчитать F1 для трёх классов эмоций.",
+     "why": "Для больше чем двух классов нужно указать, как усреднять: `average=\"macro\"` — среднее по классам, каждый класс одинаково важен.",
+     "id": "sk_metrics.4",
+     "fixedLine": "print(round(f1_score(y_true, y_pred, average=\"macro\"), 2))",
+     "lines": [
+      "from sklearn.metrics import f1_score",
+      "y_true = [\"joy\", \"sad\", \"anger\", \"joy\"]",
+      "y_pred = [\"joy\", \"sad\", \"joy\", \"joy\"]",
+      "print(round(f1_score(y_true, y_pred), 2))"
+     ],
+     "bugLine": 3,
+     "expected": "0.6",
+     "actual": "ValueError: Target is multiclass but average='binary'. Please choose another average setting, one of [None, 'micro', 'macro', 'weighted'].",
+     "actualError": true
+    },
+    {
+     "type": "order",
+     "task": "Показать, что точность обманывает на редком классе.",
+     "id": "sk_metrics.5",
+     "lines": [
+      "from sklearn.metrics import accuracy_score, f1_score",
+      "y_true = [0, 0, 0, 0, 1]",
+      "y_pred = [0, 0, 0, 0, 0]",
+      "print(accuracy_score(y_true, y_pred))",
+      "print(f1_score(y_true, y_pred, zero_division=0))"
+     ],
+     "expected": "0.8\n0.0",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      [
+       0,
+       2,
+       1,
+       3,
+       4
+      ],
+      [
+       1,
+       0,
+       2,
+       3,
+       4
+      ],
+      [
+       1,
+       2,
+       0,
+       3,
+       4
+      ],
+      [
+       2,
+       0,
+       1,
+       3,
+       4
+      ],
+      [
+       2,
+       1,
+       0,
+       3,
+       4
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Посчитать ошибки по матрице путаницы.",
+     "id": "sk_metrics.6",
+     "lines": [
+      "from sklearn.metrics import confusion_matrix",
+      "cm = confusion_matrix([1, 0, 1, 1], [1, 1, 0, 1])",
+      "errors = cm[0, 1] + cm[1, 0]",
+      "print(cm.tolist(), errors)"
+     ],
+     "expected": "[[0, 1], [1, 2]] 2",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши, как усреднять recall по классам.",
+     "why": "Среднее по классам — `\"macro\"`: recall у joy 1.0, у sad 0.5.",
+     "id": "sk_metrics.7",
+     "lines": [
+      "from sklearn.metrics import recall_score",
+      "y_true = [\"joy\", \"sad\", \"sad\"]",
+      "y_pred = [\"joy\", \"joy\", \"sad\"]",
+      "print(round(recall_score(y_true, y_pred, average=), 2))"
+     ],
+     "gapLine": 3,
+     "before": "print(round(recall_score(y_true, y_pred, average=",
+     "after": "), 2))",
+     "answer": "\"macro\"",
+     "expected": "0.75"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: точность предсказаний.",
+     "why": "Точность — `accuracy_score(y_true, y_pred)`: верно 2 из 3.",
+     "id": "sk_metrics.8",
+     "lines": [
+      "from sklearn.metrics import accuracy_score",
+      "y_true = [1, 0, 1]",
+      "y_pred = [1, 1, 1]",
+      "print(round(, 2))"
+     ],
+     "gapLine": 3,
+     "before": "print(round(",
+     "after": ", 2))",
+     "answer": "accuracy_score(y_true, y_pred)",
+     "expected": "0.67"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `recall_positive(y_true, y_pred)`: recall для класса 1, округлённый до двух знаков. Используй `recall_score`.",
+     "starter": "from sklearn.metrics import recall_score\n\ndef recall_positive(y_true, y_pred):\n    # твой код\n    pass",
+     "solution": "from sklearn.metrics import recall_score\n\ndef recall_positive(y_true, y_pred):\n    return round(float(recall_score(y_true, y_pred)), 2)",
+     "tests": [
+      "recall_positive([1, 1, 0, 1], [1, 0, 0, 1])",
+      "recall_positive([1], [1])"
+     ],
+     "hints": [
+      "`recall_score(y_true, y_pred)` по умолчанию считает для класса 1.",
+      "Округли: `round(float(...), 2)`.",
+      "`return round(float(recall_score(y_true, y_pred)), 2)`"
+     ],
+     "setup": "",
+     "id": "sk_metrics.9",
+     "testsPy": "_TESTS = [('recall_positive([1, 1, 0, 1], [1, 0, 0, 1])', '0.67'), ('recall_positive([1], [1])', '1.0')]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `macro_f1(y_true, y_pred)`: F1, усреднённый по классам, округлённый до двух знаков.",
+     "starter": "from sklearn.metrics import f1_score\n\ndef macro_f1(y_true, y_pred):\n    # твой код\n    pass",
+     "solution": "from sklearn.metrics import f1_score\n\ndef macro_f1(y_true, y_pred):\n    return round(float(f1_score(y_true, y_pred, average=\"macro\")), 2)",
+     "tests": [
+      "macro_f1([\"joy\", \"sad\"], [\"joy\", \"sad\"])",
+      "macro_f1([\"joy\", \"sad\", \"sad\"], [\"joy\", \"joy\", \"sad\"])"
+     ],
+     "hints": [
+      "Нужна `f1_score` с усреднением по классам.",
+      "Параметр — `average=\"macro\"`.",
+      "`return round(float(f1_score(y_true, y_pred, average=\"macro\")), 2)`"
+     ],
+     "setup": "",
+     "id": "sk_metrics.10",
+     "testsPy": "_TESTS = [('macro_f1([\"joy\", \"sad\"], [\"joy\", \"sad\"])', '1.0'), ('macro_f1([\"joy\", \"sad\", \"sad\"], [\"joy\", \"joy\", \"sad\"])', '0.67')]\n"
+    }
+   ],
+   "track": "ml"
+  },
+  {
+   "id": "sk_text",
+   "title": "Текст в числа",
+   "diag": [],
+   "intro": "Модель понимает только числа. `CountVectorizer` превращает тексты в таблицу: столбец — слово, число — сколько раз оно встретилось. `TfidfVectorizer` устроен так же, но снижает вес слов, которые есть почти везде. Словарь строят на обучающих текстах — `fit_transform`, а к новым текстам применяют `transform`: тогда у них те же столбцы, а незнакомые слова пропускаются.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "from sklearn.feature_extraction.text import CountVectorizer\nvec = CountVectorizer()\nX = vec.fit_transform([\"the sea\", \"the sky the sea\"])\nprint(vec.get_feature_names_out().tolist())\nprint(X.toarray().tolist())",
+     "why": "Слова отсортированы по алфавиту. Во втором тексте the встречается дважды.",
+     "id": "sk_text.1",
+     "expected": "['sea', 'sky', 'the']\n[[1, 0, 1], [1, 1, 2]]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "vec",
+          "CountVectorizer (модель)"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 3,
+        "scope": "",
+        "vars": [
+         [
+          "vec",
+          "CountVectorizer (модель)"
+         ],
+         [
+          "X",
+          "разреженная матрица 2×3"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 4,
+        "scope": "",
+        "vars": [
+         [
+          "vec",
+          "CountVectorizer (модель)"
+         ],
+         [
+          "X",
+          "разреженная матрица 2×3"
+         ]
+        ],
+        "out": "['sea', 'sky', 'the']\n"
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "vec",
+          "CountVectorizer (модель)"
+         ],
+         [
+          "X",
+          "разреженная матрица 2×3"
+         ]
+        ],
+        "out": "['sea', 'sky', 'the']\n[[1, 0, 1], [1, 1, 2]]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "from sklearn.feature_extraction.text import CountVectorizer\nvec = CountVectorizer().fit([\"sea sky\"])\nprint(vec.transform([\"sky moon sky\"]).toarray().tolist())",
+     "why": "Столбцы — только слова из обучения: sea и sky. Слова moon в словаре нет, оно пропускается.",
+     "id": "sk_text.2",
+     "expected": "[[0, 2]]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "vec",
+          "CountVectorizer (модель)"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "vec",
+          "CountVectorizer (модель)"
+         ]
+        ],
+        "out": "[[0, 2]]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Построить словарь на обучении и применить к тесту.",
+     "why": "`fit_transform` на тесте строит новый словарь, и столбцов становится другое число: модель, обученная на старых столбцах, сломается.",
+     "id": "sk_text.3",
+     "fixedLine": "X_test = vec.transform([\"sea star\"])",
+     "lines": [
+      "from sklearn.feature_extraction.text import CountVectorizer",
+      "vec = CountVectorizer()",
+      "X_train = vec.fit_transform([\"sea sky\", \"moon\"])",
+      "X_test = vec.fit_transform([\"sea star\"])",
+      "print(X_train.shape, X_test.shape)"
+     ],
+     "bugLine": 3,
+     "expected": "(2, 3) (1, 3)",
+     "actual": "(2, 3) (1, 2)"
+    },
+    {
+     "type": "bug",
+     "task": "Превратить одно стихотворение в числа.",
+     "why": "Векторизатор ждёт список текстов. Одна строка — это не список: даже один текст оборачивают в квадратные скобки.",
+     "id": "sk_text.4",
+     "fixedLine": "X = vec.fit_transform([\"hope is the thing\"])",
+     "lines": [
+      "from sklearn.feature_extraction.text import CountVectorizer",
+      "vec = CountVectorizer()",
+      "X = vec.fit_transform(\"hope is the thing\")",
+      "print(X.shape)"
+     ],
+     "bugLine": 2,
+     "expected": "(1, 4)",
+     "actual": "ValueError: Iterable over raw text documents expected, string object received.",
+     "actualError": true
+    },
+    {
+     "type": "order",
+     "task": "Научить модель отличать весёлые строки от грустных.",
+     "id": "sk_text.5",
+     "lines": [
+      "from sklearn.feature_extraction.text import CountVectorizer",
+      "from sklearn.naive_bayes import MultinomialNB",
+      "vec = CountVectorizer()",
+      "X = vec.fit_transform([\"joy light sun\", \"grief dark night\"])",
+      "model = MultinomialNB().fit(X, [\"joy\", \"sad\"])",
+      "print(model.predict(vec.transform([\"dark sun night\"])).tolist())"
+     ],
+     "expected": "['sad']",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4,
+       5
+      ],
+      [
+       0,
+       2,
+       1,
+       3,
+       4,
+       5
+      ],
+      [
+       0,
+       2,
+       3,
+       1,
+       4,
+       5
+      ],
+      [
+       1,
+       0,
+       2,
+       3,
+       4,
+       5
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Убрать служебные слова английского языка.",
+     "id": "sk_text.6",
+     "lines": [
+      "from sklearn.feature_extraction.text import CountVectorizer",
+      "vec = CountVectorizer(stop_words=\"english\")",
+      "vec.fit([\"the raven and the night\"])",
+      "print(vec.get_feature_names_out().tolist())"
+     ],
+     "expected": "['night', 'raven']",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: применить готовый словарь к новому тексту.",
+     "why": "Словарь уже построен, поэтому только `transform`.",
+     "id": "sk_text.7",
+     "lines": [
+      "from sklearn.feature_extraction.text import CountVectorizer",
+      "vec = CountVectorizer()",
+      "vec.fit([\"sea sky\", \"sea\"])",
+      "print(vec.([\"sea sea\"]).toarray().tolist())"
+     ],
+     "gapLine": 3,
+     "before": "print(vec.",
+     "after": "([\"sea sea\"]).toarray().tolist())",
+     "answer": "transform",
+     "expected": "[[2, 0]]"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: брать отдельные слова и пары соседних слов.",
+     "why": "`ngram_range=(1, 2)` — кусочки от одного до двух слов подряд.",
+     "id": "sk_text.8",
+     "lines": [
+      "from sklearn.feature_extraction.text import CountVectorizer",
+      "vec = CountVectorizer(ngram_range=)",
+      "vec.fit([\"dark night\"])",
+      "print(vec.get_feature_names_out().tolist())"
+     ],
+     "gapLine": 1,
+     "before": "vec = CountVectorizer(ngram_range=",
+     "after": ")",
+     "answer": "(1, 2)",
+     "expected": "['dark', 'dark night', 'night']"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `vocab(texts)`: список слов, которые `CountVectorizer` нашёл в текстах, по алфавиту.",
+     "starter": "from sklearn.feature_extraction.text import CountVectorizer\n\ndef vocab(texts):\n    # твой код\n    pass",
+     "solution": "from sklearn.feature_extraction.text import CountVectorizer\n\ndef vocab(texts):\n    vec = CountVectorizer().fit(texts)\n    return vec.get_feature_names_out().tolist()",
+     "tests": [
+      "vocab([\"Sea sky\", \"sea\"])",
+      "vocab([\"the raven\"])"
+     ],
+     "hints": [
+      "Обучи векторизатор на текстах: `CountVectorizer().fit(texts)`.",
+      "Слова даёт `get_feature_names_out()`.",
+      "`return vec.get_feature_names_out().tolist()`"
+     ],
+     "setup": "",
+     "id": "sk_text.9",
+     "testsPy": "_TESTS = [('vocab([\"Sea sky\", \"sea\"])', \"['sea', 'sky']\"), ('vocab([\"the raven\"])', \"['raven', 'the']\")]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `word_counts(texts, text)`: обучи `CountVectorizer` на `texts` и верни словарь «слово из словаря → сколько раз оно есть в `text`», включая нули.",
+     "starter": "from sklearn.feature_extraction.text import CountVectorizer\n\ndef word_counts(texts, text):\n    # твой код\n    pass",
+     "solution": "from sklearn.feature_extraction.text import CountVectorizer\n\ndef word_counts(texts, text):\n    vec = CountVectorizer().fit(texts)\n    row = vec.transform([text]).toarray()[0]\n    return {str(w): int(c) for w, c in zip(vec.get_feature_names_out(), row)}",
+     "tests": [
+      "word_counts([\"sea sky\"], \"sky sky moon\")",
+      "word_counts([\"sea\", \"moon\"], \"moon moon\")"
+     ],
+     "hints": [
+      "Обучи векторизатор на `texts`, потом `transform([text])` — список из одного текста.",
+      "`.toarray()[0]` — строка чисел для этого текста; слова — `get_feature_names_out()`.",
+      "`return {str(w): int(c) for w, c in zip(vec.get_feature_names_out(), row)}`"
+     ],
+     "setup": "",
+     "id": "sk_text.10",
+     "testsPy": "_TESTS = [('word_counts([\"sea sky\"], \"sky sky moon\")', \"{'sea': 0, 'sky': 2}\"), ('word_counts([\"sea\", \"moon\"], \"moon moon\")', \"{'moon': 2, 'sea': 0}\")]\n"
+    }
+   ],
+   "track": "ml"
+  },
+  {
+   "id": "sk_pipe",
+   "title": "Pipeline и честная проверка",
+   "diag": [],
+   "intro": "Главное правило: всё, что модель узнаёт о данных — среднее, словарь, веса, — узнаётся только на обучающей части. Если подсмотреть тест, оценка выйдет красивой, а на новых данных модель провалится: это утечка данных. `StandardScaler` выравнивает признаки: среднее 0, разброс 1. `Pipeline` склеивает шаги и сам делает `fit` на обучении и `transform` на тесте. `cross_val_score` проверяет модель на нескольких разбиениях подряд.",
+   "tasks": [
+    {
+     "type": "predict",
+     "code": "from sklearn.preprocessing import StandardScaler\nsc = StandardScaler().fit([[0], [10]])\nprint(sc.mean_.tolist(), sc.transform([[5], [10]]).tolist())",
+     "why": "Среднее обучающих данных 5, разброс 5. Значит 5 превращается в 0, а 10 — в 1.",
+     "id": "sk_pipe.1",
+     "expected": "[5.0] [[0.0], [1.0]]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [
+         [
+          "sc",
+          "StandardScaler (модель)"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "sc",
+          "StandardScaler (модель)"
+         ]
+        ],
+        "out": "[5.0] [[0.0], [1.0]]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "predict",
+     "code": "from sklearn.pipeline import make_pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.neighbors import KNeighborsClassifier\npipe = make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=1))\npipe.fit([[1], [2], [9], [10]], [0, 0, 1, 1])\nprint(list(pipe.named_steps), pipe.predict([[8]]).tolist())",
+     "why": "`make_pipeline` сам называет шаги по названиям классов. `fit` и `predict` у пайплайна — как у обычной модели.",
+     "id": "sk_pipe.2",
+     "expected": "['standardscaler', 'kneighborsclassifier'] [1]",
+     "trace": {
+      "steps": [
+       {
+        "line": 0,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 1,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 2,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 3,
+        "scope": "",
+        "vars": [],
+        "out": ""
+       },
+       {
+        "line": 4,
+        "scope": "",
+        "vars": [
+         [
+          "pipe",
+          "Pipeline: standardscaler, kneighborsclassifier"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": 5,
+        "scope": "",
+        "vars": [
+         [
+          "pipe",
+          "Pipeline: standardscaler, kneighborsclassifier"
+         ]
+        ],
+        "out": ""
+       },
+       {
+        "line": -1,
+        "scope": "",
+        "vars": [
+         [
+          "pipe",
+          "Pipeline: standardscaler, kneighborsclassifier"
+         ]
+        ],
+        "out": "['standardscaler', 'kneighborsclassifier'] [1]\n"
+       }
+      ],
+      "cut": false
+     }
+    },
+    {
+     "type": "bug",
+     "task": "Масштабировать тест по параметрам обучающих данных.",
+     "why": "Это утечка данных: масштаб узнали в том числе по тесту. Параметры берут только из обучающей части.",
+     "id": "sk_pipe.3",
+     "fixedLine": "sc = StandardScaler().fit(X_train)",
+     "lines": [
+      "from sklearn.preprocessing import StandardScaler",
+      "X_train = [[0], [10]]",
+      "X_test = [[100]]",
+      "sc = StandardScaler().fit(X_train + X_test)",
+      "print(sc.transform(X_test).tolist())"
+     ],
+     "bugLine": 3,
+     "expected": "[[19.0]]",
+     "actual": "[[1.4083737016560924]]"
+    },
+    {
+     "type": "bug",
+     "task": "Собрать пайплайн из масштабирования и логистической регрессии.",
+     "why": "`Pipeline` ждёт пары «имя, шаг». Без имён удобнее `make_pipeline(StandardScaler(), LogisticRegression())`.",
+     "id": "sk_pipe.4",
+     "fixedLine": "pipe = Pipeline([(\"scale\", StandardScaler()), (\"model\", LogisticRegression())])",
+     "lines": [
+      "from sklearn.pipeline import Pipeline",
+      "from sklearn.preprocessing import StandardScaler",
+      "from sklearn.linear_model import LogisticRegression",
+      "pipe = Pipeline([StandardScaler(), LogisticRegression()])",
+      "pipe.fit([[1], [2], [9], [10]], [0, 0, 1, 1])",
+      "print(pipe.predict([[0], [11]]).tolist())"
+     ],
+     "bugLine": 3,
+     "expected": "[0, 1]",
+     "actual": "TypeError: cannot unpack non-iterable StandardScaler object",
+     "actualError": true
+    },
+    {
+     "type": "order",
+     "task": "Проверить модель на трёх разбиениях.",
+     "id": "sk_pipe.5",
+     "lines": [
+      "from sklearn.model_selection import cross_val_score",
+      "from sklearn.neighbors import KNeighborsClassifier",
+      "X = [[1], [2], [3], [8], [9], [10]]",
+      "y = [0, 0, 0, 1, 1, 1]",
+      "scores = cross_val_score(KNeighborsClassifier(n_neighbors=1), X, y, cv=3)",
+      "print(scores.tolist(), scores.mean())"
+     ],
+     "expected": "[1.0, 1.0, 1.0] 1.0",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4,
+       5
+      ],
+      [
+       0,
+       1,
+       3,
+       2,
+       4,
+       5
+      ],
+      [
+       0,
+       2,
+       1,
+       3,
+       4,
+       5
+      ],
+      [
+       0,
+       2,
+       3,
+       1,
+       4,
+       5
+      ],
+      [
+       0,
+       3,
+       1,
+       2,
+       4,
+       5
+      ],
+      [
+       0,
+       3,
+       2,
+       1,
+       4,
+       5
+      ],
+      [
+       1,
+       0,
+       2,
+       3,
+       4,
+       5
+      ],
+      [
+       1,
+       0,
+       3,
+       2,
+       4,
+       5
+      ],
+      [
+       1,
+       2,
+       0,
+       3,
+       4,
+       5
+      ],
+      [
+       1,
+       2,
+       3,
+       0,
+       4,
+       5
+      ],
+      [
+       1,
+       3,
+       0,
+       2,
+       4,
+       5
+      ],
+      [
+       1,
+       3,
+       2,
+       0,
+       4,
+       5
+      ],
+      [
+       2,
+       0,
+       1,
+       3,
+       4,
+       5
+      ],
+      [
+       2,
+       0,
+       3,
+       1,
+       4,
+       5
+      ],
+      [
+       2,
+       1,
+       0,
+       3,
+       4,
+       5
+      ],
+      [
+       2,
+       1,
+       3,
+       0,
+       4,
+       5
+      ],
+      [
+       2,
+       3,
+       0,
+       1,
+       4,
+       5
+      ],
+      [
+       2,
+       3,
+       1,
+       0,
+       4,
+       5
+      ],
+      [
+       3,
+       0,
+       1,
+       2,
+       4,
+       5
+      ],
+      [
+       3,
+       0,
+       2,
+       1,
+       4,
+       5
+      ],
+      [
+       3,
+       1,
+       0,
+       2,
+       4,
+       5
+      ],
+      [
+       3,
+       1,
+       2,
+       0,
+       4,
+       5
+      ],
+      [
+       3,
+       2,
+       0,
+       1,
+       4,
+       5
+      ],
+      [
+       3,
+       2,
+       1,
+       0,
+       4,
+       5
+      ]
+     ]
+    },
+    {
+     "type": "order",
+     "task": "Собрать пайплайн для текстов.",
+     "id": "sk_pipe.6",
+     "lines": [
+      "from sklearn.pipeline import make_pipeline",
+      "from sklearn.feature_extraction.text import CountVectorizer",
+      "from sklearn.naive_bayes import MultinomialNB",
+      "pipe = make_pipeline(CountVectorizer(), MultinomialNB())",
+      "pipe.fit([\"joy sun\", \"grief night\"], [\"joy\", \"sad\"])",
+      "print(pipe.predict([\"night night\"]).tolist())"
+     ],
+     "expected": "['sad']",
+     "valid": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4,
+       5
+      ],
+      [
+       0,
+       2,
+       1,
+       3,
+       4,
+       5
+      ],
+      [
+       1,
+       0,
+       2,
+       3,
+       4,
+       5
+      ],
+      [
+       1,
+       2,
+       0,
+       3,
+       4,
+       5
+      ],
+      [
+       2,
+       0,
+       1,
+       3,
+       4,
+       5
+      ],
+      [
+       2,
+       1,
+       0,
+       3,
+       4,
+       5
+      ]
+     ]
+    },
+    {
+     "type": "fill",
+     "task": "Допиши: масштабировать тест параметрами, найденными на обучении.",
+     "why": "Для теста — только `transform`. `fit_transform` заново посчитал бы среднее по тесту.",
+     "id": "sk_pipe.7",
+     "lines": [
+      "from sklearn.preprocessing import StandardScaler",
+      "sc = StandardScaler()",
+      "X_train = sc.fit_transform([[0], [10]])",
+      "X_test = sc.([[20]])",
+      "print(X_test.tolist())"
+     ],
+     "gapLine": 3,
+     "before": "X_test = sc.",
+     "after": "([[20]])",
+     "answer": "transform",
+     "expected": "[[3.0]]"
+    },
+    {
+     "type": "fill",
+     "task": "Допиши число разбиений: три.",
+     "why": "Параметр `cv` — сколько раз делить данные. По умолчанию 5.",
+     "id": "sk_pipe.8",
+     "lines": [
+      "from sklearn.model_selection import cross_val_score",
+      "from sklearn.dummy import DummyClassifier",
+      "X = [[0]] * 6",
+      "y = [0, 0, 0, 1, 1, 1]",
+      "print(len(cross_val_score(DummyClassifier(), X, y, cv=)))"
+     ],
+     "gapLine": 4,
+     "before": "print(len(cross_val_score(DummyClassifier(), X, y, cv=",
+     "after": ")))",
+     "answer": "3",
+     "expected": "3"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `make_model()`: верни пайплайн из `StandardScaler` и `KNeighborsClassifier(n_neighbors=1)`.",
+     "starter": "from sklearn.pipeline import make_pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.neighbors import KNeighborsClassifier\n\ndef make_model():\n    # твой код\n    pass",
+     "solution": "from sklearn.pipeline import make_pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.neighbors import KNeighborsClassifier\n\ndef make_model():\n    return make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=1))",
+     "tests": [
+      "make_model().fit([[1], [2], [9], [10]], [0, 0, 1, 1]).predict([[3], [8]]).tolist()",
+      "len(make_model().steps)"
+     ],
+     "hints": [
+      "`make_pipeline` принимает шаги по порядку.",
+      "Сначала масштабирование, потом модель.",
+      "`return make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=1))`"
+     ],
+     "setup": "",
+     "id": "sk_pipe.9",
+     "testsPy": "_TESTS = [('make_model().fit([[1], [2], [9], [10]], [0, 0, 1, 1]).predict([[3], [8]]).tolist()', '[0, 1]'), ('len(make_model().steps)', '2')]\n"
+    },
+    {
+     "type": "write",
+     "task": "Напиши функцию `cv_mean(X, y)`: средняя точность `KNeighborsClassifier(n_neighbors=1)` по `cross_val_score` с `cv=3`, округлённая до двух знаков.",
+     "starter": "from sklearn.model_selection import cross_val_score\nfrom sklearn.neighbors import KNeighborsClassifier\n\ndef cv_mean(X, y):\n    # твой код\n    pass",
+     "solution": "from sklearn.model_selection import cross_val_score\nfrom sklearn.neighbors import KNeighborsClassifier\n\ndef cv_mean(X, y):\n    scores = cross_val_score(KNeighborsClassifier(n_neighbors=1), X, y, cv=3)\n    return round(float(scores.mean()), 2)",
+     "tests": [
+      "cv_mean([[1], [2], [3], [8], [9], [10]], [0, 0, 0, 1, 1, 1])",
+      "cv_mean([[1], [2], [3], [4], [5], [6]], [0, 1, 0, 1, 0, 1])"
+     ],
+     "hints": [
+      "`cross_val_score(модель, X, y, cv=3)` вернёт три оценки.",
+      "Среднее — `.mean()`, потом округление.",
+      "`return round(float(scores.mean()), 2)`"
+     ],
+     "setup": "",
+     "id": "sk_pipe.10",
+     "testsPy": "_TESTS = [('cv_mean([[1], [2], [3], [8], [9], [10]], [0, 0, 0, 1, 1, 1])', '1.0'), ('cv_mean([[1], [2], [3], [4], [5], [6]], [0, 1, 0, 1, 0, 1])', '0.33')]\n"
+    }
+   ],
+   "track": "ml"
   }
  ],
  "errors": {

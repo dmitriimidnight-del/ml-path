@@ -2,7 +2,7 @@
 // Файлы приложения: сначала сеть (чтобы приходили обновления), без сети — из памяти телефона.
 // Python (Pyodide с CDN): сначала память, потому что файлы конкретной версии не меняются.
 
-var SHELL_CACHE = "mlpath-shell-v9";
+var SHELL_CACHE = "mlpath-shell-v10";
 var PYODIDE_CACHE = "mlpath-pyodide";
 var NETWORK_TIMEOUT_MS = 4000;
 

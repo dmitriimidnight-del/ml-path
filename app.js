@@ -2122,7 +2122,14 @@
   }
 
   // Порядок тем: сначала слабые по диагностике, потом остальные
-  function pyTrack(tp) { return tp.track === "data" ? "data" : "py"; }
+  function pyTrack(tp) { return tp.track || "py"; }
+  var TRACKS = [
+    { id: "py", title: "Python" },
+    { id: "data", title: "NumPy и pandas", after: "py", afterTitle: "Python", libs: "pandas",
+      about: "На этом стоят проекты 1–2: таблицы стихов, подсчёты, метрики." },
+    { id: "ml", title: "scikit-learn", after: "data", afterTitle: "NumPy и pandas", libs: "scikit-learn",
+      about: "Обучение и честная проверка моделей: разбиение, fit и predict, метрики, тексты в числа, Pipeline. Это проекты 2–3." }
+  ];
   function pyShare(track) {
     var s = pyState(), all = 0, done = 0;
     PT().topics.forEach(function (tp) {
@@ -2131,11 +2138,12 @@
     });
     return all ? done / all : 0;
   }
-  // NumPy и pandas попадают в разминку, когда решено 70% задач Python или ты сам начал эти темы
-  function dataOpen() {
-    var s = pyState();
-    return pyShare("py") >= 0.7 || PT().topics.some(function (tp) {
-      return pyTrack(tp) === "data" && tp.tasks.some(function (t) { return s.done[t.id]; });
+  // Следующий блок попадает в разминку, когда решено 70% задач предыдущего или ты сам начал его темы
+  function trackOpen(id) {
+    var tr = TRACKS.filter(function (x) { return x.id === id; })[0], s = pyState();
+    if (!tr || !tr.after) return true;
+    return pyShare(tr.after) >= 0.7 || PT().topics.some(function (tp) {
+      return pyTrack(tp) === id && tp.tasks.some(function (t) { return s.done[t.id]; });
     });
   }
 
@@ -2149,17 +2157,17 @@
     if (s.daily.date !== today) {
       var ids = Object.keys(s.review).filter(function (id) { return s.review[id].due <= today && pyTask(id); })
         .sort(function (x, y) { return s.review[x].due < s.review[y].due ? -1 : 1; }).slice(0, 3);
-      // Новые задачи: Python, а когда открыты NumPy и pandas — две из пяти оттуда
-      var open = dataOpen();
+      // Новые задачи: Python, а когда открыт следующий блок — две из пяти из самого нового открытого
       function take(track, limit) {
         pyTopicsOrdered().forEach(function (tp) {
           if (pyTrack(tp) !== track) return;
           tp.tasks.forEach(function (t) { if (ids.length < limit && !s.done[t.id] && ids.indexOf(t.id) === -1) ids.push(t.id); });
         });
       }
-      if (open) take("data", Math.min(5, ids.length + 2));
+      var opened = TRACKS.filter(function (x) { return x.after && trackOpen(x.id); }).map(function (x) { return x.id; });
+      if (opened.length) take(opened[opened.length - 1], Math.min(5, ids.length + 2));
       take("py", 5);
-      if (open) take("data", 5);
+      opened.forEach(function (id) { take(id, 5); });
       if (ids.length < 5) {
         Object.keys(s.done).forEach(function (id) { if (ids.length < 5 && ids.indexOf(id) === -1 && pyTask(id)) ids.push(id); });
       }
@@ -2216,16 +2224,15 @@
       });
       return out + '</ul>';
     }
-    h += '<section class="panel"><h2>Python</h2>' + topicList("py") + '</section>';
-    if (PT().topics.some(function (tp) { return pyTrack(tp) === "data"; })) {
-      var share = Math.round(pyShare("py") * 100);
-      h += '<section class="panel" id="py-data"><h2>NumPy и pandas</h2>';
-      h += '<p class="hint">На этом стоят проекты 1–2: таблицы стихов, подсчёты, метрики. ' +
-        (dataOpen() ? 'Эти задачи уже попадают в разминку.' : 'Лучше браться, когда решено около 70% задач Python, сейчас ' + share + '%. ' +
-          'Тогда они сами начнут попадать в разминку; начать можно и раньше.') +
-        ' Первый запуск загружает pandas в браузер, это 10–20 секунд.</p>';
-      h += topicList("data") + '</section>';
-    }
+    TRACKS.forEach(function (tr) {
+      if (!PT().topics.some(function (tp) { return pyTrack(tp) === tr.id; })) return;
+      h += '<section class="panel" id="py-' + tr.id + '"><h2>' + esc(tr.title) + '</h2>';
+      if (tr.after) h += '<p class="hint">' + esc(tr.about) + ' ' +
+        (trackOpen(tr.id) ? 'Эти задачи уже попадают в разминку.' : 'Лучше браться, когда решено около 70% задач блока «' + tr.afterTitle +
+          '», сейчас ' + Math.round(pyShare(tr.after) * 100) + '%. Тогда они сами начнут попадать в разминку; начать можно и раньше.') +
+        ' Первый запуск загружает ' + tr.libs + ' в браузер, это 10–20 секунд.</p>';
+      h += topicList(tr.id) + '</section>';
+    });
     h += '<a class="next continue-card" href="#python/errors"><span class="next-label">Справочник</span><span class="next-text">Разбор типичных ошибок Python</span>' +
       '<span class="next-meta">Как читать сообщение об ошибке и что делать с каждой</span></a>';
     app.innerHTML = h;
@@ -2236,7 +2243,8 @@
     var h = '<a class="back" href="#python">← Тренажёр</a>';
     h += '<header class="phead"><p class="eyebrow">Тема' + (pyWeak(tp) ? ' · по диагностике стоит подтянуть' : '') + '</p><h1>' + esc(tp.title) + '</h1>';
     h += '<p class="lead">' + fmt(tp.intro) + '</p>';
-    if (pyTrack(tp) === "data") h += '<p class="hint">Код запускается в браузере с NumPy и pandas. Первый запуск дольше обычного: библиотеки загружаются один раз.</p>';
+    if (pyTrack(tp) !== "py") h += '<p class="hint">Код запускается прямо в браузере. Первый запуск дольше обычного: ' +
+      (pyTrack(tp) === "ml" ? 'scikit-learn загружается' : 'NumPy и pandas загружаются') + ' один раз.</p>';
     var n = pyTopicDone(tp);
     h += bar(Math.round(n / tp.tasks.length * 100), 'Решено задач') + '<p class="hint">Решено ' + n + ' из ' + tp.tasks.length + '</p></header>';
     STEP_ORDER.forEach(function (kind, k) {
@@ -2565,7 +2573,7 @@
       var g = Number(got), e = Number(exp);
       if (g === e && gk === "float") return "`/` всегда даёт дробное число. Нужно целое — используй `//` или `int()`.";
       if (g === e) return "Нужно дробное число, а получилось целое. Проверь, не `//` ли вместо `/`.";
-      if (Math.abs(g - e) === 1) return "Ответ отличается на 1. Проверь границы: `range(n)` не включает `n`, а `>` и `>=` отличаются ровно на одно значение.";
+      if (Math.abs(g - e) === 1) return "Ответ отличается на 1. Частые причины: граница `range(n)` не включает `n`, `>` вместо `>=` или пропущен один элемент.";
       if (gk === "float" && ek === "float" && Math.abs(g - e) < 0.01) return "Почти совпало. Проверь округление: `round(x, 2)`.";
       if (e !== 0 && Math.abs(g / e - 100) < 1e-9) return "Получилось в 100 раз больше: возможно, проценты посчитаны дважды.";
       return "";
