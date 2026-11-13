@@ -554,3 +554,34 @@ textarea.note-input {
   display: block; width: 100%; margin-top: 4px; font: inherit; font-size: 1rem; color: var(--ink); background: var(--bg);
   border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px;
 }
+
+/* ---------- оглавление, части урока, вопросы после разделов, английский ---------- */
+.toc { margin: 0 0 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 4px 16px; }
+.toc summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+.toc-list { list-style: none; padding: 0 0 10px; margin: 0; }
+.toc-part { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 12px 0 4px; }
+.toc-item {
+  display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; font: inherit; color: var(--ink);
+  background: transparent; border: 0; border-radius: 8px; padding: 9px 6px; min-height: 40px; cursor: pointer;
+}
+.toc-item:hover { background: var(--bg); }
+.toc-mark { flex: none; width: 18px; height: 18px; margin-top: 2px; border: 2px solid var(--line); border-radius: 50%; }
+.toc-item.read .toc-mark { background: var(--ok); border-color: var(--ok); }
+.toc-item.here { font-weight: 700; }
+.toc-item.here .toc-mark { border-color: var(--accent); }
+.resume { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between;
+  background: var(--panel); border: 2px solid var(--accent); border-radius: 14px; padding: 12px 16px; margin: 0 0 18px; }
+.resume p { margin: 0; flex: 1 1 200px; }
+.part-end { text-align: center; color: var(--muted); font-size: 0.92rem; margin: 6px 12px 22px; padding: 10px 0;
+  border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); }
+.sec-check { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.sec-check-label { margin: 0 0 4px; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.sec-check .q { margin-top: 6px; }
+.link-btn { font: inherit; color: var(--accent); background: none; border: 0; padding: 6px 0; text-align: left; text-decoration: underline; cursor: pointer; min-height: 36px; }
+.say { font-size: 1rem; line-height: 1; background: transparent; border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 9px; margin-left: 8px; vertical-align: middle; cursor: pointer; min-width: 36px; min-height: 32px; }
+.say:hover { border-color: var(--accent); }
+.say-wide { margin: 4px 0 6px; padding: 8px 14px; font: inherit; color: var(--ink); }
+.english p[lang="en"] { font-size: 1.05rem; line-height: 1.6; }
+.continue-card { background: var(--panel); color: var(--ink); border: 2px solid var(--accent); }
+.continue-card .next-label { color: var(--accent); opacity: 1; }

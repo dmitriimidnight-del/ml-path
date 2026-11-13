@@ -9,7 +9,7 @@
   // ---------- состояние ----------
 
   function emptyState() {
-    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {}, diag: {}, log: {}, active: {}, termsAdded: {}, drills: {}, exams: {}, repoCheck: {}, notes: {}, interview: {} };
+    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {}, diag: {}, log: {}, active: {}, termsAdded: {}, drills: {}, exams: {}, repoCheck: {}, notes: {}, interview: {}, read: {}, pos: {} };
   }
 
   function load() {
@@ -191,6 +191,7 @@
     h += '</header>';
 
     h += diagInvite();
+    h += continueCard();
 
     if (next) {
       h += '<a class="next" href="' + next.href + '">';
@@ -834,9 +835,9 @@
     var left = dueKeys().filter(function (k) { return k !== key; }).length;
     var h = '<section class="panel term-card"><p class="hint">Термин · ' + esc(it.t.title) + (left ? ' · ещё ' + left : '') + '</p>';
     h += '<p class="term-ask">' + (enFirst ? 'Что значит по-русски?' : 'Как это по-английски?') + '</p>';
-    h += '<p class="term-front">' + esc(front) + '</p>';
+    h += '<p class="term-front">' + esc(front) + (enFirst ? sayBtn(it.term[0]) : '') + '</p>';
     if (reviewShown && reviewShown.key === key && reviewShown.revealed) {
-      h += '<p class="term-back">' + esc(back) + '</p>';
+      h += '<p class="term-back">' + esc(back) + (enFirst ? '' : sayBtn(it.term[0])) + '</p>';
       h += '<div class="row"><button type="button" class="run-btn" data-act="term-grade" data-key="' + esc(key) + '" data-ok="1">Помню</button>';
       h += '<button type="button" class="ghost small" data-act="term-grade" data-key="' + esc(key) + '" data-ok="0">Не вспомнил</button></div>';
     } else {
@@ -876,7 +877,7 @@
     h += '<dl class="terms glossary">';
     terms.forEach(function (x) {
       var hay = (x.en + " " + x.ru).toLowerCase();
-      h += '<div class="g-row" data-text="' + esc(hay) + '"><dt>' + esc(x.en) + '</dt><dd>' + esc(x.ru) +
+      h += '<div class="g-row" data-text="' + esc(hay) + '"><dt>' + esc(x.en) + sayBtn(x.en) + '</dt><dd>' + esc(x.ru) +
         ' <a class="g-src" href="#' + x.p.id + '/theory/' + x.t.id + '">' + esc(x.t.title) + '</a></dd></div>';
     });
     h += '</dl><p class="hint" id="glossary-empty" hidden>Ничего не нашлось.</p>';
@@ -1572,11 +1573,15 @@
     var lessonP = project(lp[0]);
     var lessonT = lessonP.theory.filter(function (t) { return t.id === lp[1]; })[0];
     var h = '<a class="back" href="#interview">← Все вопросы</a>';
-    h += '<header class="phead"><p class="eyebrow">' + esc(p.title) + '</p><h1 lang="en" class="iv-q">' + esc(q.q) + '</h1>';
+    h += '<header class="phead"><p class="eyebrow">' + esc(p.title) + '</p><h1 lang="en" class="iv-q">' + esc(q.q) + sayBtn(q.q) + '</h1>';
     h += '<p class="lead">' + esc(q.ru) + '</p></header>';
     h += '<section class="panel"><h2>Твой ответ</h2>';
     h += '<p class="hint">Сначала скажи ответ вслух, как на собеседовании, потом запиши главное. Сохраняется само.</p>';
     h += '<textarea class="note-input" rows="6" data-iv-answer="' + q.id + '" lang="en" placeholder="In this project I…" aria-label="Твой ответ">' + esc(a.answer || '') + '</textarea>';
+    if (speechRecognitionClass()) {
+      h += '<button type="button" class="ghost small" data-act="iv-voice" data-id="' + q.id + '">🎤 Ответить голосом</button>';
+      h += '<p class="hint" id="iv-voice-status" aria-live="polite">Говори по-английски: текст появится в поле. Обычно для распознавания нужен интернет.</p>';
+    }
     if (!a.revealed) {
       h += '<button type="button" class="run-btn" data-act="iv-reveal" data-id="' + q.id + '">Что должно быть в ответе</button>';
     } else {
@@ -1706,6 +1711,12 @@
       pick.best = Math.max(x.best || 0, y.best || 0);
       m.exams[pid] = pick;
     });
+    m.read = Object.assign({}, b.read);
+    Object.keys(a.read).forEach(function (k) {
+      var u = (a.read[k] || []).concat(b.read[k] || []);
+      m.read[k] = u.filter(function (x, i) { return u.indexOf(x) === i; }).sort(function (x, y) { return x - y; });
+    });
+    m.pos = (a.pos && a.pos.at || 0) >= (b.pos && b.pos.at || 0) ? a.pos : b.pos;
     ["notes", "interview"].forEach(function (k) {
       m[k] = Object.assign({}, b[k]);
       Object.keys(a[k]).forEach(function (id) { m[k][id] = newer(a[k][id], b[k][id]); });
@@ -1859,6 +1870,185 @@
   });
   window.addEventListener("online", function () { if (syncCfg().token) syncNow(false); });
 
+  // ---------- части урока, оглавление и место остановки ----------
+
+  var lessonCtx = null;
+
+  function lessonParts(t) {
+    var nums = (String(t.time).match(/\d+/g) || ["30"]).map(Number);
+    var lo = nums[0], hi = nums[nums.length - 1];
+    var count = hi >= 90 ? 3 : hi >= 60 ? 2 : 1;
+    count = Math.min(count, t.sections.length);
+    var w = t.sections.map(function (s) {
+      return 1 + (s.p || []).join(" ").split(/\s+/).length + (s.code ? s.code.split("\n").length * 6 : 0);
+    });
+    var total = w.reduce(function (a, b) { return a + b; }, 0), acc = 0, of = [];
+    w.forEach(function (x, i) {
+      var part = Math.min(count - 1, Math.floor(acc / total * count));
+      // в каждой части хотя бы один раздел
+      if (i > 0 && part > of[i - 1] + 1) part = of[i - 1] + 1;
+      of.push(Math.max(part, count - (w.length - i)));
+      acc += x;
+    });
+    var minutes = count > 1 ? (Math.round(lo / count) === Math.round(hi / count) ? '~' + Math.round(lo / count) :
+      '~' + Math.round(lo / count) + '–' + Math.round(hi / count)) + ' мин' : '';
+    return { count: count, of: of, minutes: minutes };
+  }
+
+  function readOf(p, t) { return state.read[p.id + "." + t.id] || []; }
+
+  function tocHtml(p, t, parts) {
+    var read = readOf(p, t);
+    var here = state.pos && state.pos.pid === p.id && state.pos.tid === t.id ? state.pos.sec : -1;
+    var h = '<details class="toc"><summary>Содержание · прочитано ' + read.length + ' из ' + t.sections.length +
+      (parts.count > 1 ? ' · ' + parts.count + ' части по ' + parts.minutes : '') + '</summary><ol class="toc-list">';
+    t.sections.forEach(function (s, si) {
+      if (parts.count > 1 && (si === 0 || parts.of[si] !== parts.of[si - 1])) {
+        h += '<li class="toc-part">Часть ' + (parts.of[si] + 1) + '</li>';
+      }
+      var cls = 'toc-item' + (read.indexOf(si) !== -1 ? ' read' : '') + (si === here ? ' here' : '');
+      h += '<li><button type="button" class="' + cls + '" data-act="goto-sec" data-i="' + si + '">' +
+        '<span class="toc-mark" aria-hidden="true"></span>' + esc(s.h) + '</button></li>';
+    });
+    if (t.practice) h += '<li><button type="button" class="toc-item" data-act="goto-sec" data-i="practice"><span class="toc-mark" aria-hidden="true"></span>Практика и итог урока</button></li>';
+    return h + '</ol></details>';
+  }
+
+  function resumeHtml(p, t) {
+    var pos = state.pos;
+    if (!pos || pos.pid !== p.id || pos.tid !== t.id || !(pos.sec > 0) || !t.sections[pos.sec]) return '';
+    if (/^s\d+$/.test(parts()[3] || "")) return '';
+    if (readOf(p, t).length >= t.sections.length) return '';
+    return '<div class="resume"><p>Ты остановился на разделе «' + esc(t.sections[pos.sec].h) + '».</p>' +
+      '<button type="button" class="run-btn" data-act="goto-sec" data-i="' + pos.sec + '">Продолжить</button></div>';
+  }
+
+  function gotoSection(i) {
+    var el = document.getElementById(i === "practice" ? "practice" : "sec-" + i);
+    if (!el) return;
+    var d = app.querySelector(".toc");
+    if (d) d.open = false;
+    el.scrollIntoView({ block: "start" });
+  }
+
+  function continueCard() {
+    var pos = state.pos;
+    if (!pos || !pos.pid) return '';
+    var p = project(pos.pid);
+    var t = p && p.theory ? p.theory.filter(function (x) { return x.id === pos.tid; })[0] : null;
+    if (!t || !t.sections[pos.sec] || readOf(p, t).length >= t.sections.length) return '';
+    return '<a class="next continue-card" href="#' + p.id + '/theory/' + t.id + '/s' + pos.sec + '">' +
+      '<span class="next-label">Продолжить с места</span><span class="next-text">' + esc(t.title) + '</span>' +
+      '<span class="next-meta">Раздел ' + (pos.sec + 1) + ' из ' + t.sections.length + ' · ' + esc(t.sections[pos.sec].h) + '</span></a>';
+  }
+
+  // Какой раздел сейчас читается: последний, чей заголовок поднялся выше трети экрана
+  var trackTimer = null, saveTimer = null;
+  window.addEventListener("scroll", function () {
+    if (!lessonCtx || trackTimer) return;
+    trackTimer = setTimeout(function () { trackTimer = null; trackReading(); }, 250);
+  }, { passive: true });
+
+  function trackReading() {
+    if (!lessonCtx) return;
+    var p = lessonCtx.p, t = lessonCtx.t, line = window.innerHeight * 0.35, cur = -1;
+    app.querySelectorAll("[data-sec]").forEach(function (el) {
+      if (el.getBoundingClientRect().top < line) cur = Number(el.dataset.sec);
+    });
+    var practice = document.getElementById("practice") || document.getElementById("quiz");
+    var done = practice && practice.getBoundingClientRect().top < line;
+    var n = t.sections.length;
+    var mark = done ? n : cur;
+    if (mark === lessonCtx.cur || cur < 0) return;
+    lessonCtx.cur = mark;
+    var key = p.id + "." + t.id, read = state.read[key] || [];
+    for (var i = 0; i < Math.min(mark, n); i++) if (read.indexOf(i) === -1) read.push(i);
+    state.read[key] = read.sort(function (x, y) { return x - y; });
+    state.pos = { pid: p.id, tid: t.id, sec: Math.min(cur, n - 1), at: Date.now() };
+    app.querySelectorAll(".toc-item[data-i]").forEach(function (b) {
+      var i = Number(b.dataset.i);
+      b.classList.toggle("read", read.indexOf(i) !== -1);
+      b.classList.toggle("here", i === state.pos.sec);
+    });
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 800);
+  }
+
+  // ---------- английский: пересказ, произношение, голосовой ответ ----------
+
+  function canSpeak() { return typeof window.speechSynthesis !== "undefined" && typeof window.SpeechSynthesisUtterance !== "undefined"; }
+
+  function sayBtn(text, label) {
+    if (!canSpeak()) return '';
+    return '<button type="button" class="say' + (label ? ' say-wide' : '') + '" data-act="say" data-text="' + esc(text) +
+      '" aria-label="Послушать по-английски">🔊' + (label ? ' ' + esc(label) : '') + '</button>';
+  }
+
+  function say(text) {
+    if (!canSpeak()) return;
+    var synth = window.speechSynthesis;
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.rate = 0.9;
+    var voices = synth.getVoices ? synth.getVoices() : [];
+    var v = voices.filter(function (x) { return /^en(-|_)US/i.test(x.lang); })[0] || voices.filter(function (x) { return /^en/i.test(x.lang); })[0];
+    if (v) u.voice = v;
+    synth.speak(u);
+  }
+
+  function englishHtml(p, t) {
+    var text = window.ENGLISH && window.ENGLISH[p.id + "." + t.id];
+    if (!text) return '';
+    return '<section class="panel english"><h2>Главное по-английски</h2><p lang="en">' + esc(text) + '</p>' +
+      sayBtn(text, 'Послушать') +
+      '<p class="hint">Прочитай вслух. Так ты повторяешь урок и тренируешь рассказ о проекте на английском. Незнакомые слова ищи в словарике ниже.</p></section>';
+  }
+
+  function speechRecognitionClass() { return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
+
+  var recog = null;
+
+  function toggleVoice(id, btn) {
+    var status = document.getElementById("iv-voice-status");
+    if (recog) { recog.stop(); return; }
+    var SR = speechRecognitionClass();
+    var box = document.querySelector('textarea[data-iv-answer="' + id + '"]');
+    if (!SR || !box) return;
+    var base = box.value.trim() ? box.value.trim() + " " : "";
+    recog = new SR();
+    recog.lang = "en-US";
+    recog.continuous = true;
+    recog.interimResults = true;
+    recog.onresult = function (e) {
+      var finalText = "", interim = "";
+      for (var i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript + " ";
+        else interim += e.results[i][0].transcript;
+      }
+      box.value = base + finalText + interim;
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    recog.onerror = function (e) {
+      if (status) status.textContent = e.error === "not-allowed" || e.error === "service-not-allowed"
+        ? "Нет доступа к микрофону. Разреши его в настройках браузера для этого сайта."
+        : e.error === "network" ? "Не получилось распознать: нужен интернет." : "Не получилось распознать речь. Попробуй ещё раз.";
+    };
+    recog.onend = function () {
+      recog = null;
+      btn.textContent = "🎤 Ответить голосом";
+      if (status && /Слушаю/.test(status.textContent)) status.textContent = "Готово. Проверь текст и поправь, если что-то распозналось неточно.";
+    };
+    try {
+      recog.start();
+      btn.textContent = "⏹ Остановить";
+      if (status) status.textContent = "Слушаю. Говори по-английски, потом нажми «Остановить».";
+    } catch (err) {
+      recog = null;
+      if (status) status.textContent = "Не получилось включить микрофон.";
+    }
+  }
+
   function viewLesson(p, t) {
     var idx = p.theory.indexOf(t);
     var backHref = '#' + p.id + (isIntro(p) ? '' : '/theory');
@@ -1870,18 +2060,28 @@
     h += '<label class="toggle"><input type="checkbox" data-setting="predict"' + (predictOn() ? ' checked' : '') +
       '> Сначала угадывать, что напечатает код</label>';
     h += '</header>';
+    var parts = lessonParts(t);
+    h += resumeHtml(p, t);
+    h += tocHtml(p, t, parts);
 
     h += '<section class="panel why-box"><h2>Зачем это нужно</h2><p>' + fmt(t.why) + '</p></section>';
 
     t.sections.forEach(function (s, si) {
-      h += '<section class="panel"><h2>' + esc(s.h) + '</h2>';
+      h += '<section class="panel" id="sec-' + si + '" data-sec="' + si + '"><h2>' + esc(s.h) + '</h2>';
       s.p.forEach(function (x) { h += '<p>' + fmt(x) + '</p>'; });
       if (s.code) h += sectionRunnable(s) ? runBox(p, t, 's' + si, s.code) : codeBlock(s.code);
       if (s.out) h += predictOn() ? predictBlock(blockId(p, t, 's' + si), s.out) : codeBlock(s.out, 'Что напечатает программа');
       if (s.widget && window.Widgets) h += widgetHtml(blockId(p, t, 'w' + si), s.widget);
       if (s.note) h += '<p class="note">' + fmt(s.note) + '</p>';
+      h += sectionChecksHtml(p, t, si);
       h += '</section>';
+      if (si < t.sections.length - 1 && parts.of[si] !== parts.of[si + 1]) {
+        h += '<p class="part-end">Конец части ' + (parts.of[si] + 1) + ' из ' + parts.count +
+          '. Хорошее место для перерыва: приложение запомнит, где ты остановился.</p>';
+      }
     });
+
+    h += englishHtml(p, t);
 
     if (t.mistakes) {
       h += '<section class="panel"><h2>Частые ошибки</h2><ul class="mistakes">';
@@ -1892,7 +2092,7 @@
     }
 
     if (t.practice) {
-      h += '<section class="panel"><h2>Попробуй сам</h2>';
+      h += '<section class="panel" id="practice"><h2>Попробуй сам</h2>';
       h += '<p class="hint">Сначала реши, потом открывай решение. Подсмотренное решение ничему не учит.</p>';
       t.practice.forEach(function (x, i) {
         h += '<div class="task"><p><strong>Задание ' + (i + 1) + '.</strong> ' + fmt(x.task) + '</p>';
@@ -1910,7 +2110,7 @@
       h += '<section class="panel"><h2>Словарик</h2>';
       h += '<p class="hint">Термины на английском: так они называются в документации, вакансиях и на собеседованиях.</p>';
       h += '<dl class="terms">';
-      t.terms.forEach(function (x) { h += '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; });
+      t.terms.forEach(function (x) { h += '<dt>' + esc(x[0]) + sayBtn(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; });
       h += '</dl>';
       if (state.termsAdded[p.id + "." + t.id]) {
         h += '<p class="hint terms-added">✓ Термины этого урока в повторении.</p>';
@@ -1947,13 +2147,41 @@
 
   function quizHtml(p, t) {
     var s = lessonScore(p, t);
+    if (t.sectionQuiz) return quizSummaryHtml(p, t, s);
     var h = '<section class="panel" id="quiz"><div class="quiz-head"><h2>Проверь себя</h2><span class="hint">' +
       s.right + ' из ' + s.total + '</span></div>';
-    t.quiz.forEach(function (q, qi) {
+    t.quiz.forEach(function (q, qi) { h += questionHtml(p, t, qi); });
+    h += '<button type="button" class="ghost" data-act="reset-quiz" data-prefix="' + p.id + "." + t.id + '.">Пройти заново</button>';
+    return h + '</section>';
+  }
+
+  function quizSummaryHtml(p, t, s) {
+    var answered = t.quiz.filter(function (_, qi) { return state.quiz[qKey(p, t, qi)] !== undefined; }).length;
+    var h = '<section class="panel" id="quiz"><div class="quiz-head"><h2>Итог урока</h2><span class="hint">верно ' +
+      s.right + ' из ' + s.total + '</span></div>';
+    if (answered < t.quiz.length) {
+      var missed = [];
+      t.sectionQuiz.forEach(function (qs, si) {
+        if (qs.some(function (qi) { return state.quiz[qKey(p, t, qi)] === undefined; })) missed.push(si);
+      });
+      h += '<p>Отвечено ' + answered + ' из ' + t.quiz.length + ' вопросов. Вопросы стоят после разделов, где разбирается их тема. Без ответа остались разделы:</p><ul class="plain">';
+      missed.forEach(function (si) {
+        h += '<li><button type="button" class="link-btn" data-act="goto-sec" data-i="' + si + '">' + esc(t.sections[si].h) + '</button></li>';
+      });
+      h += '</ul>';
+    } else {
+      h += '<p>' + (s.right === s.total ? 'Все ответы верные.' : 'Вопросы с ошибками попали в повторение: они вернутся завтра.') + '</p>';
+    }
+    h += '<button type="button" class="ghost" data-act="reset-quiz" data-prefix="' + p.id + "." + t.id + '.">Ответить на все вопросы заново</button>';
+    return h + '</section>';
+  }
+
+  function questionHtml(p, t, qi) {
+      var q = t.quiz[qi];
       var key = qKey(p, t, qi);
       var picked = state.quiz[key];
       var answered = picked !== undefined;
-      h += '<fieldset class="q"><legend>' + fmt(q.q) + '</legend>';
+      var h = '<fieldset class="q"><legend>' + fmt(q.q) + '</legend>';
       // порядок вариантов постоянный для вопроса, но правильный не всегда первый
       order(q.options.length, qi * 31 + q.q.length + q.options[0].length).forEach(function (oi) {
         var cls = "opt";
@@ -1965,10 +2193,15 @@
       if (answered) {
         h += '<p class="why"><strong>' + (picked === q.answer ? 'Верно.' : 'Неверно.') + '</strong> ' + fmt(q.why) + '</p>';
       }
-      h += '</fieldset>';
-    });
-    h += '<button type="button" class="ghost" data-act="reset-quiz" data-prefix="' + p.id + "." + t.id + '.">Пройти заново</button>';
-    return h + '</section>';
+      return h + '</fieldset>';
+  }
+
+  function sectionChecksHtml(p, t, si) {
+    var qs = t.sectionQuiz && t.sectionQuiz[si];
+    if (!qs || !qs.length) return '';
+    var h = '<div class="sec-check"><p class="sec-check-label">Проверь себя</p>';
+    qs.forEach(function (qi) { h += questionHtml(p, t, qi); });
+    return h + '</div>';
   }
 
   // Детерминированная перестановка индексов 0..n-1: правильный ответ попадает на разные места
@@ -2023,7 +2256,10 @@
 
   function parts() { return location.hash.replace(/^#/, "").split("/"); }
 
+  var jumpedHash = null;   // переход к разделу по ссылке делается один раз, а не при каждой перерисовке
+
   function render() {
+    lessonCtx = null;
     var a = parts();
     var p = project(a[0]);
     if (a[0] === "review") { viewReview(); return; }
@@ -2034,7 +2270,16 @@
     if (!p) { viewHome(); return; }
     if (a[1] === "theory" && a[2] && hasLessons(p)) {
       var t = p.theory.filter(function (x) { return x.id === a[2]; })[0];
-      if (t) { viewLesson(p, t); return; }
+      if (t) {
+        viewLesson(p, t);
+        lessonCtx = { p: p, t: t, cur: -2 };
+        var m = /^s(\d+)$/.exec(a[3] || "");
+        if (m && jumpedHash !== location.hash) {
+          jumpedHash = location.hash;
+          setTimeout(function () { gotoSection(m[1]); }, 0);
+        }
+        return;
+      }
     }
     var tab = TABS.some(function (t) { return t[0] === a[1]; }) ? a[1] : "brief";
     viewProject(p, tab);
@@ -2045,6 +2290,7 @@
 
   var lastPage = pageKey();
   window.addEventListener("hashchange", function () {
+    jumpedHash = null;
     var now = pageKey();
     render();
     if (now !== lastPage) window.scrollTo(0, 0);
@@ -2117,6 +2363,9 @@
     if (act === "exam-next") { examNext(el.dataset.pid); return; }
     if (act === "repo-check") { checkRepo(project(el.dataset.pid)); return; }
     if (act === "notes-download") { downloadNotes(); return; }
+    if (act === "goto-sec") { gotoSection(el.dataset.i); return; }
+    if (act === "say") { say(el.dataset.text); return; }
+    if (act === "iv-voice") { toggleVoice(el.dataset.id, el); return; }
     if (act === "iv-reveal") { ivEntry(el.dataset.id).revealed = true; save(); rerenderInPlace(); return; }
     if (act === "iv-claude") { askClaudeInterview(el.dataset.id); return; }
     if (act === "iv-random") { randomInterview(el.dataset.pid); return; }
