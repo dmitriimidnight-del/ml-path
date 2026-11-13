@@ -585,3 +585,38 @@ textarea.note-input {
 .english p[lang="en"] { font-size: 1.05rem; line-height: 1.6; }
 .continue-card { background: var(--panel); color: var(--ink); border: 2px solid var(--accent); }
 .continue-card .next-label { color: var(--accent); opacity: 1; }
+
+/* ---------- тренажёр Python ---------- */
+.py-card { background: var(--panel); color: var(--ink); border: 2px solid var(--ok); }
+.py-card .next-label { color: var(--ok); opacity: 1; }
+.py-topics, .py-tasks { list-style: none; padding: 0; margin: 0; }
+.py-topics li { padding: 10px 0; border-top: 1px solid var(--line); }
+.py-topics li:first-child { border-top: 0; }
+.py-topics a { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; color: var(--ink); text-decoration: none; min-height: 36px; }
+.py-topic-title { font-weight: 600; }
+.py-topic-meta { color: var(--muted); white-space: nowrap; font-size: 0.9rem; }
+.py-weak { font-size: 0.75rem; font-weight: 600; color: var(--gold); border: 1px solid var(--gold); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
+.py-tasks li { border-top: 1px solid var(--line); }
+.py-tasks li:first-child { border-top: 0; }
+.py-tasks a { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; color: var(--ink); text-decoration: none; min-height: 44px; }
+.py-mark { flex: none; width: 18px; height: 18px; margin-top: 3px; border: 2px solid var(--line); border-radius: 50%; }
+.py-mark.done { background: var(--ok); border-color: var(--ok); }
+.py-task-title { font-size: 1.35rem; line-height: 1.35; }
+.py-code { white-space: pre; overflow-x: auto; }
+.py-code mark { background: rgba(31, 122, 77, 0.35); color: inherit; border-radius: 4px; padding: 0 2px; }
+.py-err { color: #ffb4a8; }
+.fill-input {
+  font: inherit; color: var(--code-ink); background: rgba(255, 255, 255, 0.08); border: 1px solid #8a8370;
+  border-radius: 6px; padding: 2px 6px; min-height: 30px; max-width: 70vw;
+}
+.fill-input:focus { outline: 2px solid var(--accent); }
+.py-predict-input { display: block; width: 100%; margin-top: 6px; font: 0.95rem/1.5 var(--mono); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.py-tests, .py-results { list-style: none; padding: 0; margin: 6px 0 12px; }
+.py-tests li, .py-results li { padding: 6px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.py-results li.ok span:first-child { color: var(--ok); font-weight: 700; }
+.py-results li.no span:first-child { color: var(--bad); font-weight: 700; }
+.py-hint { background: var(--bg); border-left: 4px solid var(--gold); border-radius: 6px; padding: 8px 12px; margin: 10px 0; }
+.py-next { width: 100%; margin-top: 4px; }
+.py-daily-head { margin-top: 8px; }
+.drill .hint code { white-space: pre-wrap; }

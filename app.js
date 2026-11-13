@@ -9,7 +9,7 @@
   // ---------- состояние ----------
 
   function emptyState() {
-    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {}, diag: {}, log: {}, active: {}, termsAdded: {}, drills: {}, exams: {}, repoCheck: {}, notes: {}, interview: {}, read: {}, pos: {} };
+    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {}, diag: {}, log: {}, active: {}, termsAdded: {}, drills: {}, exams: {}, repoCheck: {}, notes: {}, interview: {}, read: {}, pos: {}, py: {} };
   }
 
   function load() {
@@ -192,6 +192,7 @@
 
     h += diagInvite();
     h += continueCard();
+    h += pyHomeCard();
 
     if (next) {
       h += '<a class="next" href="' + next.href + '">';
@@ -221,7 +222,7 @@
     h += '</ol>';
 
     var nNotes = Object.keys(state.notes).filter(function (k) { return state.notes[k].text.trim(); }).length;
-    h += '<nav class="tools"><a href="#glossary">Словарь терминов</a><a href="#diagnostic">' +
+    h += '<nav class="tools"><a href="#python">Тренажёр Python</a><a href="#glossary">Словарь терминов</a><a href="#diagnostic">' +
       (state.diag.done ? 'Диагностика: ' + diagScore().right + ' из ' + diagScore().total : 'Диагностика по Python') + '</a>' +
       '<a href="#interview">Тренажёр собеседования</a><a href="#notes">Мои заметки' + (nNotes ? ' · ' + nNotes : '') + '</a></nav>';
 
@@ -419,7 +420,7 @@
     });
     if (r.error) {
       h += '<div class="run-error"><p><strong>' + esc(r.error.text) + '</strong></p>';
-      if (r.error.hint) h += '<p>' + esc(r.error.hint) + '</p>';
+      if (r.error.hint) h += '<p>' + esc(r.error.hint) + ' <a class="link" href="#python/errors">Разбор ошибок</a></p>';
       h += '<div class="row"><button type="button" class="ghost small" data-act="reset-space">Начать заново</button>' +
         '<button type="button" class="ghost small" data-act="ask-error">Спросить Claude</button></div></div>';
     }
@@ -576,9 +577,10 @@
     var ta = e.target;
     if (!ta.classList || !ta.classList.contains("code-edit")) return;
     var box = ta.closest(".runbox");
+    ta.rows = rows(ta.value);
+    if (!box) return;                      // поле кода в тренажёре сохраняется своим обработчиком
     var m = runMem[box.dataset.id] = runMem[box.dataset.id] || {};
     m.code = ta.value;
-    ta.rows = rows(ta.value);
   });
 
   // Tab вставляет 4 пробела, Enter сохраняет отступ и добавляет 4 после двоеточия
@@ -1078,6 +1080,8 @@
       h += '<li class="' + (st[k] ? 'known' : 'weak') + '"><span>' + (st[k] ? '✓' : '✕') + ' ' + esc(tp.title) + '</span>';
       if (!st[k]) {
         var links = [];
+        var trainerTopic = pyTopicForDiag(k);
+        if (trainerTopic) links.push('<a href="#python/' + trainerTopic.id + '">тренажёр</a>');
         if (tp.lesson) links.push('<a href="#' + tp.lesson + '">урок в приложении</a>');
         if (tp.doc) links.push('<a href="' + tp.doc + '" target="_blank" rel="noopener">учебник Python</a>');
         h += '<span class="diag-links">' + links.join(' · ') + '</span>';
@@ -1167,7 +1171,8 @@
     var m = drillMem[key] || {};
     var done = m.picked === b.bugLine || m.shown;
     var h = '<div class="drill"><p><strong>Найди ошибку.</strong>' + solvedMark(key) + ' ' + esc(b.task) + '</p>';
-    h += '<p class="hint">Код печатает <code>' + esc(b.actual) + '</code>, а должен <code>' + esc(b.expected) + '</code>. Нажми на строку с ошибкой.</p>';
+    h += '<p class="hint">' + (b.actualError ? 'Код падает с ошибкой <code>' + esc(b.actual) + '</code>, а должен напечатать ' :
+      'Код печатает <code>' + esc(b.actual) + '</code>, а должен ') + '<code>' + esc(b.expected) + '</code>. Нажми на строку с ошибкой.</p>';
     h += '<div class="code-lines">';
     b.lines.forEach(function (line, i) {
       if (!line.trim()) { h += '<div class="cl-gap"></div>'; return; }
@@ -1189,11 +1194,12 @@
   }
 
   function pickBug(key, line) {
-    var ex = window.EXERCISES[key.split("|")[0]].bug;
+    var ex = drillSource(key);
     var m = drillMem[key] = drillMem[key] || {};
     if (line === ex.bugLine) {
       m.picked = line;
       state.drills[key] = true;
+      if (isPyKey(key)) pyDone(pyIdOf(key), !(m.wrong && m.wrong.length));
       markActive();
       save();
     } else {
@@ -1239,11 +1245,16 @@
   }
 
   function checkOrder(key) {
-    var o = window.EXERCISES[key.split("|")[0]].order;
+    var o = drillSource(key);
     var m = drillMem[key];
     var ok = o.valid.some(function (v) { return v.join(",") === m.placed.join(","); });
     m.result = ok ? 'right' : 'wrong';
-    if (ok) { state.drills[key] = true; markActive(); save(); }
+    if (!ok) m.failed = true;
+    if (ok) {
+      state.drills[key] = true;
+      if (isPyKey(key)) pyDone(pyIdOf(key), !m.failed);
+      markActive(); save();
+    }
     rerenderInPlace();
   }
 
@@ -1453,6 +1464,8 @@
       var key = el.dataset.note;
       if (el.value.trim()) state.notes[key] = { text: el.value, at: Date.now() };
       else state.notes[key] = { text: "", at: Date.now() };
+    } else if (el.dataset.pyCode !== undefined) {
+      pyState().code[el.dataset.pyCode] = { text: el.value, at: Date.now() };
     } else if (el.dataset.ivAnswer !== undefined) {
       var it = ivEntry(el.dataset.ivAnswer);
       it.answer = el.value;
@@ -1717,6 +1730,15 @@
       m.read[k] = u.filter(function (x, i) { return u.indexOf(x) === i; }).sort(function (x, y) { return x - y; });
     });
     m.pos = (a.pos && a.pos.at || 0) >= (b.pos && b.pos.at || 0) ? a.pos : b.pos;
+    var pa = Object.assign({ done: {}, review: {}, code: {}, hints: {}, daily: {} }, a.py);
+    var pb = Object.assign({ done: {}, review: {}, code: {}, hints: {}, daily: {} }, b.py);
+    m.py = { done: Object.assign({}, pb.done, pa.done), review: Object.assign({}, pb.review), code: Object.assign({}, pb.code),
+      hints: Object.assign({}, pb.hints, pa.hints), daily: (pa.daily.date || "") >= (pb.daily.date || "") ? pa.daily : pb.daily };
+    Object.keys(pa.review).forEach(function (id) {
+      var x = pa.review[id], y = pb.review[id];
+      m.py.review[id] = !y || x.box > y.box || (x.box === y.box && x.due >= y.due) ? x : y;
+    });
+    Object.keys(pa.code).forEach(function (id) { m.py.code[id] = newer(pa.code[id], pb.code[id]); });
     ["notes", "interview"].forEach(function (k) {
       m[k] = Object.assign({}, b[k]);
       Object.keys(a[k]).forEach(function (id) { m[k][id] = newer(a[k][id], b[k][id]); });
@@ -2049,6 +2071,390 @@
     }
   }
 
+  // ---------- тренажёр Python ----------
+
+  var STEP_NAMES = { predict: "Прочитай код", bug: "Найди ошибку", order: "Собери код", fill: "Допиши", write: "Напиши сам" };
+  var STEP_ORDER = ["predict", "bug", "order", "fill", "write"];
+  var pyMem = {};
+
+  function PT() { return window.PYTRAINER || { topics: [], errors: { items: [] } }; }
+  function pyState() {
+    state.py = state.py || {};
+    ["done", "review", "code", "hints", "daily"].forEach(function (k) { state.py[k] = state.py[k] || {}; });
+    return state.py;
+  }
+  function isPyKey(key) { return key.indexOf("py:") === 0; }
+  function pyIdOf(key) { return key.split("|")[0].slice(3); }
+  function pyTask(id) {
+    var tp = PT().topics.filter(function (x) { return id.indexOf(x.id + ".") === 0; })[0];
+    return tp ? tp.tasks.filter(function (t) { return t.id === id; })[0] : null;
+  }
+  function pyTopic(id) { return PT().topics.filter(function (x) { return x.id === id; })[0]; }
+  function pyTopicOfTask(id) { return pyTopic(id.split(".")[0]); }
+  function drillSource(key) {
+    var base = key.split("|")[0];
+    return isPyKey(key) ? pyTask(base.slice(3)) : window.EXERCISES[base][key.split("|")[1]];
+  }
+  function pyTopicForDiag(diagKey) {
+    return PT().topics.filter(function (tp) { return tp.diag.indexOf(diagKey) !== -1; })[0] || null;
+  }
+  function pyWeak(tp) {
+    var st = diagTopicStatus();
+    return !!st && tp.diag.some(function (k) { return st[k] === false; });
+  }
+  function pyTopicDone(tp) { var s = pyState(); return tp.tasks.filter(function (t) { return s.done[t.id]; }).length; }
+
+  function pyDone(id, clean) {
+    var s = pyState(), today = dayString(0), r = s.review[id];
+    var first = !s.done[id];
+    s.done[id] = true;
+    if (!clean) s.review[id] = { box: 0, due: dayString(1) };
+    else if (r && r.due <= today) {
+      var box = r.box + 1;
+      if (box >= INTERVALS.length) delete s.review[id];
+      else s.review[id] = { box: box, due: dayString(INTERVALS[box]) };
+    }
+    var d = s.daily;
+    if (d.date === today && d.ids && d.ids[d.idx] === id && !(id in (d.results = d.results || {}))) d.results[id] = clean;
+    markActive();
+    save();
+    return first;
+  }
+
+  // Порядок тем: сначала слабые по диагностике, потом остальные
+  function pyTopicsOrdered() {
+    var all = PT().topics.slice();
+    return all.filter(pyWeak).concat(all.filter(function (tp) { return !pyWeak(tp); }));
+  }
+
+  function pyDaily() {
+    var s = pyState(), today = dayString(0);
+    if (s.daily.date !== today) {
+      var ids = Object.keys(s.review).filter(function (id) { return s.review[id].due <= today && pyTask(id); })
+        .sort(function (x, y) { return s.review[x].due < s.review[y].due ? -1 : 1; }).slice(0, 3);
+      pyTopicsOrdered().forEach(function (tp) {
+        tp.tasks.forEach(function (t) { if (ids.length < 5 && !s.done[t.id] && ids.indexOf(t.id) === -1) ids.push(t.id); });
+      });
+      if (ids.length < 5) {
+        Object.keys(s.done).forEach(function (id) { if (ids.length < 5 && ids.indexOf(id) === -1 && pyTask(id)) ids.push(id); });
+      }
+      s.daily = { date: today, ids: ids, idx: 0, results: {} };
+      save();
+    }
+    return s.daily;
+  }
+
+  function pyHomeCard() {
+    if (!PT().topics.length) return '';
+    var d = pyState().daily;
+    var today = dayString(0);
+    var count = d.date === today ? Object.keys(d.results || {}).length : 0;
+    if (d.date === today && d.idx >= d.ids.length) return '';
+    return '<a class="next py-card" href="#python/daily"><span class="next-label">Разминка Python</span>' +
+      '<span class="next-text">5 задач на 10–15 минут</span><span class="next-meta">' +
+      (count ? 'Сделано ' + count + ' из 5' : 'Новые задачи и те, где были ошибки') + '</span></a>';
+  }
+
+  function viewPython(a1, a2) {
+    if (a1 === "errors") { viewPyErrors(); return; }
+    if (a1 === "daily") { viewPyDaily(); return; }
+    var tp = pyTopic(a1);
+    if (tp && a2) {
+      var t = tp.tasks[Number(a2) - 1];
+      if (t) { app.innerHTML = '<a class="back" href="#python/' + tp.id + '">← ' + esc(tp.title) + '</a>' + pyTaskHtml(t, null); return; }
+    }
+    if (tp) { viewPyTopic(tp); return; }
+    var s = pyState(), today = dayString(0), d = s.daily;
+    var h = '<a class="back" href="#">← Весь путь</a>';
+    h += '<header class="phead"><p class="eyebrow">Тренажёр</p><h1>Python каждый день</h1>';
+    h += '<p class="lead">Короткие задачи с проверкой. В каждой теме лесенка: сначала читаешь код, потом находишь ошибку, собираешь, дописываешь и пишешь сам.</p></header>';
+    var dailyDone = d.date === today && d.idx >= (d.ids || []).length;
+    h += '<a class="next" href="#python/daily"><span class="next-label">Разминка на сегодня</span><span class="next-text">' +
+      (dailyDone ? 'Сделана ✓ Можно ещё раз пройти любую тему' : '5 задач, 10–15 минут') + '</span><span class="next-meta">' +
+      'Задачи с ошибками возвращаются через 1, 3, 7 и 16 дней</span></a>';
+    var st = diagTopicStatus();
+    var weak = PT().topics.filter(pyWeak);
+    if (!st) h += '<p class="hint">Пройди <a class="link" href="#diagnostic">диагностику</a> — 10 минут, и тренажёр начнёт с твоих слабых тем.</p>';
+    else if (weak.length) h += '<p>По диагностике начни с тем: ' + weak.map(function (tp) {
+      return '<a class="link" href="#python/' + tp.id + '">' + esc(tp.title.toLowerCase()) + '</a>'; }).join(', ') + '.</p>';
+    var due = Object.keys(s.review).filter(function (id) { return s.review[id].due <= today; }).length;
+    if (due) h += '<p class="hint">Пора повторить задач: ' + due + '. Они попадут в разминку.</p>';
+    h += '<section class="panel"><h2>Темы</h2><ul class="py-topics">';
+    pyTopicsOrdered().forEach(function (tp) {
+      var n = pyTopicDone(tp);
+      h += '<li><a href="#python/' + tp.id + '"><span class="py-topic-title">' + esc(tp.title) +
+        (pyWeak(tp) ? ' <span class="py-weak">подтянуть</span>' : '') + '</span>' +
+        '<span class="py-topic-meta">' + n + ' из ' + tp.tasks.length + '</span></a>' +
+        bar(Math.round(n / tp.tasks.length * 100), 'Решено задач в теме') + '</li>';
+    });
+    h += '</ul></section>';
+    h += '<a class="next continue-card" href="#python/errors"><span class="next-label">Справочник</span><span class="next-text">Разбор типичных ошибок Python</span>' +
+      '<span class="next-meta">Как читать сообщение об ошибке и что делать с каждой</span></a>';
+    app.innerHTML = h;
+  }
+
+  function viewPyTopic(tp) {
+    var s = pyState();
+    var h = '<a class="back" href="#python">← Тренажёр</a>';
+    h += '<header class="phead"><p class="eyebrow">Тема' + (pyWeak(tp) ? ' · по диагностике стоит подтянуть' : '') + '</p><h1>' + esc(tp.title) + '</h1>';
+    h += '<p class="lead">' + fmt(tp.intro) + '</p>';
+    var n = pyTopicDone(tp);
+    h += bar(Math.round(n / tp.tasks.length * 100), 'Решено задач') + '<p class="hint">Решено ' + n + ' из ' + tp.tasks.length + '</p></header>';
+    STEP_ORDER.forEach(function (kind, k) {
+      h += '<section class="panel"><h2>' + (k + 1) + '. ' + STEP_NAMES[kind] + '</h2><ul class="py-tasks">';
+      tp.tasks.forEach(function (t, i) {
+        if (t.type !== kind) return;
+        var label = t.task || 'Что напечатает код?';
+        h += '<li><a href="#python/' + tp.id + '/' + (i + 1) + '"><span class="py-mark' + (s.done[t.id] ? ' done' : '') + '" aria-hidden="true"></span>' +
+          '<span>' + fmt(label) + '</span></a></li>';
+      });
+      h += '</ul></section>';
+    });
+    var next = tp.tasks.map(function (t, i) { return i; }).filter(function (i) { return !s.done[tp.tasks[i].id]; })[0];
+    if (next !== undefined) h += '<a class="next" href="#python/' + tp.id + '/' + (next + 1) + '"><span class="next-label">' +
+      (n ? 'Продолжить' : 'Начать') + '</span><span class="next-text">' + STEP_NAMES[tp.tasks[next].type] + '</span></a>';
+    app.innerHTML = h;
+  }
+
+  function viewPyDaily() {
+    var d = pyDaily();
+    var h = '<a class="back" href="#python">← Тренажёр</a>';
+    if (d.idx >= d.ids.length) {
+      var res = d.results || {}, ids = Object.keys(res);
+      var clean = ids.filter(function (id) { return res[id]; }).length;
+      h += '<header class="phead"><p class="eyebrow">Разминка</p><h1>Готово на сегодня</h1>';
+      h += '<p class="lead">Без ошибок: ' + clean + ' из ' + ids.length + '.' +
+        (clean < ids.length ? ' Задачи с ошибками вернутся завтра.' : ' Отличный день.') + '</p></header>';
+      h += '<a class="next" href="#python"><span class="next-label">Дальше</span><span class="next-text">Темы тренажёра</span></a>';
+      app.innerHTML = h;
+      return;
+    }
+    var t = pyTask(d.ids[d.idx]);
+    var s = pyState();
+    var again = s.review[t.id] ? ' · повторение' : '';
+    h += '<p class="eyebrow py-daily-head">Разминка · задача ' + (d.idx + 1) + ' из ' + d.ids.length + again + '</p>';
+    h += bar(Math.round(d.idx / d.ids.length * 100), 'Прогресс разминки');
+    h += pyTaskHtml(t, { daily: true });
+    app.innerHTML = h;
+  }
+
+  function pyFinished(t) {
+    var m = pyMem[t.id] || {};
+    if (t.type === "bug") { var dm = drillMem["py:" + t.id + "|bug"] || {}; return dm.picked === t.bugLine || dm.shown; }
+    if (t.type === "order") { return (drillMem["py:" + t.id + "|order"] || {}).result === "right"; }
+    return !!(m.solved || m.shown);
+  }
+
+  function pyTaskHtml(t, ctx) {
+    var tp = pyTopicOfTask(t.id);
+    var idx = tp.tasks.indexOf(t);
+    var h = '<header class="phead"><p class="eyebrow">' + esc(tp.title) + ' · ' + STEP_NAMES[t.type] +
+      (pyState().done[t.id] ? ' · решено ✓' : '') + '</p>';
+    h += '<h1 class="py-task-title">' + (t.type === "bug" || t.type === "order" ? STEP_NAMES[t.type] : fmt(t.task || 'Что напечатает этот код?')) + '</h1></header>';
+    h += '<section class="panel">';
+    if (t.type === "predict") h += predictHtml(t);
+    else if (t.type === "bug") h += bugHtml("py:" + t.id + "|bug", t);
+    else if (t.type === "order") h += orderHtml("py:" + t.id + "|order", t);
+    else if (t.type === "fill") h += fillHtml(t);
+    else h += writeHtml(t);
+    h += '</section>';
+    var done = pyFinished(t);
+    if (ctx && ctx.daily) {
+      if (done) h += '<button type="button" class="run-btn py-next" data-act="py-daily-next">Дальше</button>';
+    } else {
+      h += '<nav class="pager">' + (idx > 0 ? '<a href="#python/' + tp.id + '/' + idx + '">← Предыдущая</a>' : '<a href="#python/' + tp.id + '">← К теме</a>') +
+        (idx < tp.tasks.length - 1 ? '<a class="pager-next" href="#python/' + tp.id + '/' + (idx + 2) + '">Следующая →</a>'
+          : '<a class="pager-next" href="#python/' + tp.id + '">К теме →</a>') + '</nav>';
+    }
+    return h;
+  }
+
+  function codeBlock(text) { return '<pre class="py-code"><code>' + esc(text) + '</code></pre>'; }
+
+  function predictHtml(t) {
+    var m = pyMem[t.id] || {};
+    var h = codeBlock(t.code);
+    var finished = m.solved || m.shown;
+    h += '<label class="field">Что напечатает программа? Каждая строка вывода — на новой строке.' +
+      '<textarea class="py-predict-input" rows="2"' + EDIT_ATTRS + (finished ? ' disabled' : '') + ' aria-label="Ответ">' + esc(m.input || '') + '</textarea></label>';
+    if (!finished) {
+      h += '<div class="row"><button type="button" class="run-btn" data-act="py-predict" data-id="' + t.id + '">Проверить</button>';
+      if (m.tries) h += '<button type="button" class="ghost small" data-act="py-show" data-id="' + t.id + '">Показать ответ</button>';
+      h += '</div>';
+      if (m.tries) h += '<p class="run-diff">Не совпадает. Пройди по коду строка за строкой и попробуй ещё.</p>';
+    } else {
+      h += '<p class="' + (m.solved ? 'run-ok' : 'code-label') + '">' + (m.solved ? 'Верно.' : 'Ответ') + '</p>' + codeBlock(t.expected);
+      h += '<p class="why">' + fmt(t.why) + '</p>';
+    }
+    return h;
+  }
+
+  function checkPredict(id) {
+    var t = pyTask(id), m = pyMem[id] = pyMem[id] || {};
+    var box = app.querySelector(".py-predict-input");
+    m.input = box ? box.value : "";
+    if (!m.input.trim()) return;
+    if (normalizeOut(m.input) === normalizeOut(t.expected)) { m.solved = true; pyDone(id, !m.tries); }
+    else m.tries = (m.tries || 0) + 1;
+    rerenderInPlace();
+  }
+
+  function showPyAnswer(id) {
+    var m = pyMem[id] = pyMem[id] || {};
+    m.shown = true;
+    pyDone(id, false);
+    rerenderInPlace();
+  }
+
+  function fillHtml(t) {
+    var m = pyMem[t.id] || {};
+    var finished = m.solved || m.shown;
+    var h = '<pre class="py-code"><code>';
+    t.lines.forEach(function (line, i) {
+      if (i === t.gapLine) {
+        h += esc(t.before) + (finished ? '<mark>' + esc(m.shown && !m.solved ? t.answer : m.input) + '</mark>'
+          : '<input type="text" class="fill-input" size="' + Math.max(8, t.answer.length + 4) + '"' + EDIT_ATTRS +
+            ' value="' + esc(m.input || '') + '" aria-label="Пропущенный код">') + esc(t.after);
+      } else h += esc(line);
+      h += '\n';
+    });
+    h += '</code></pre>';
+    h += '<p class="hint">Программа должна напечатать:</p>' + codeBlock(t.expected);
+    if (!finished) {
+      h += '<div class="row"><button type="button" class="run-btn" data-act="py-fill" data-id="' + t.id + '">Запустить и проверить</button>';
+      if ((m.tries || 0) >= 2) h += '<button type="button" class="ghost small" data-act="py-show" data-id="' + t.id + '">Показать ответ</button>';
+      h += '</div>';
+    }
+    h += '<div class="py-result" aria-live="polite">' + (m.resultHtml || '') + '</div>';
+    if (finished) h += '<p class="why">' + (m.solved ? '<strong>Верно.</strong> ' : '<strong>Ответ:</strong> <code>' + esc(t.answer) + '</code>. ') + fmt(t.why || '') + '</p>';
+    return h;
+  }
+
+  function pyRun(id, code, statusEl) {
+    var key = "pyt:" + id;
+    return Runner.reset(key).then(function () {
+      return Runner.run(code, key, function (msg) { if (statusEl) statusEl.innerHTML = '<p class="run-status">' + esc(msg) + '</p>'; });
+    });
+  }
+
+  function runFailedHtml(e) {
+    return '<p class="run-diff">' + esc(navigator.onLine ? 'Не получилось запустить Python: ' + (e && e.message || e) :
+      'Python ещё не скачан для работы без интернета. Подключись к интернету один раз или нажми на главной «Скачать Python для офлайна».') + '</p>';
+  }
+
+  async function checkFill(id) {
+    var t = pyTask(id), m = pyMem[id] = pyMem[id] || {};
+    var input = app.querySelector(".fill-input");
+    m.input = input ? input.value : "";
+    if (!m.input.trim()) return;
+    var lines = t.lines.slice();
+    lines[t.gapLine] = t.before + m.input + t.after;
+    var out = app.querySelector(".py-result");
+    if (out) out.innerHTML = '<p class="run-status">Запускаю…</p>';
+    try {
+      var r = await pyRun(id, lines.join("\n"), out);
+      var ok = !r.error && normalizeOut(r.out) === normalizeOut(t.expected);
+      m.resultHtml = ok ? '' : (r.error ? errorBoxHtml(id, r.error) : '<p class="run-diff">Программа напечатала другое:</p>' + codeBlock(r.out || '(ничего)'));
+      if (ok) { m.solved = true; pyDone(id, !m.tries); }
+      else m.tries = (m.tries || 0) + 1;
+    } catch (e) {
+      m.resultHtml = runFailedHtml(e);
+    }
+    rerenderInPlace();
+  }
+
+  function errorBoxHtml(id, err) {
+    return '<div class="run-error"><p><strong>' + esc(err.text) + '</strong></p>' + (err.hint ? '<p>' + esc(err.hint) + '</p>' : '') +
+      '<div class="row"><a class="link" href="#python/errors">Разбор ошибок</a>' +
+      '<button type="button" class="ghost small" data-act="py-ask" data-id="' + id + '">Спросить Claude</button></div></div>';
+  }
+
+  function writeHtml(t) {
+    var s = pyState(), m = pyMem[t.id] || {};
+    var code = s.code[t.id] ? s.code[t.id].text : t.starter;
+    var hints = s.hints[t.id] || 0;
+    var h = '<p class="hint">Напиши код в поле. Проверка запустит его в браузере на нескольких примерах.</p>';
+    h += '<textarea class="code-edit py-write" rows="' + Math.max(6, code.split("\n").length + 2) + '"' + EDIT_ATTRS +
+      ' data-py-code="' + t.id + '" aria-label="Твой код">' + esc(code) + '</textarea>';
+    h += '<p class="code-label">Проверка</p><ul class="py-tests">' + t.tests.map(function (c) { return '<li><code>' + esc(c) + '</code></li>'; }).join('') + '</ul>';
+    h += '<div class="row"><button type="button" class="run-btn" data-act="py-write" data-id="' + t.id + '">Проверить</button>';
+    if (hints < t.hints.length && !m.solved) h += '<button type="button" class="ghost small" data-act="py-hint" data-id="' + t.id + '">Подсказка ' + (hints + 1) + ' из ' + t.hints.length + '</button>';
+    if (!m.solved && !m.shown && ((m.fails || 0) >= 2 || hints >= t.hints.length)) h += '<button type="button" class="ghost small" data-act="py-show" data-id="' + t.id + '">Показать решение</button>';
+    if (s.code[t.id]) h += '<button type="button" class="ghost small" data-act="py-reset-code" data-id="' + t.id + '">Вернуть заготовку</button>';
+    h += '</div>';
+    for (var i = 0; i < hints; i++) h += '<p class="py-hint"><strong>Подсказка ' + (i + 1) + '.</strong> ' + fmt(t.hints[i]) + '</p>';
+    h += '<div class="py-result" aria-live="polite">' + (m.resultHtml || '') + '</div>';
+    if (m.solved) h += '<p class="run-ok">Все проверки пройдены.</p>';
+    if (m.shown) h += '<p class="code-label">Решение</p>' + codeBlock(t.solution) +
+      '<p class="hint">Разбери решение, потом сотри своё и напиши заново, не подглядывая. Задача вернётся в разминку завтра.</p>';
+    return h;
+  }
+
+  async function checkWrite(id) {
+    var t = pyTask(id), s = pyState(), m = pyMem[id] = pyMem[id] || {};
+    var box = app.querySelector("textarea[data-py-code]");
+    var code = box ? box.value : t.starter;
+    s.code[id] = { text: code, at: Date.now() };
+    var out = app.querySelector(".py-result");
+    if (out) out.innerHTML = '<p class="run-status">Запускаю…</p>';
+    try {
+      var r = await pyRun(id, code + "\n\n" + (t.setup || "") + "\n" + t.testsPy + PT().harness, out);
+      var text = r.out || "", at = text.lastIndexOf("@@RESULTS@@");
+      if (r.error || at === -1) {
+        m.fails = (m.fails || 0) + 1;
+        m.resultHtml = r.error ? errorBoxHtml(id, r.error) : '<p class="run-diff">Проверка не запустилась.</p>';
+      } else {
+        var res = JSON.parse(text.slice(at + 11));
+        var printed = text.slice(0, at).trim();
+        var passed = res.filter(function (x) { return x[2]; }).length;
+        var hh = '<ul class="py-results">';
+        res.forEach(function (x) {
+          hh += '<li class="' + (x[2] ? 'ok' : 'no') + '"><span>' + (x[2] ? '✓' : '✕') + '</span> <code>' + esc(x[0]) + '</code>' +
+            (x[2] ? '' : '<br>получилось <code>' + esc(x[1]) + '</code>, а нужно <code>' + esc(x[3]) + '</code>') + '</li>';
+        });
+        hh += '</ul>';
+        if (printed) hh += '<p class="code-label">Твой код напечатал</p>' + codeBlock(printed);
+        m.resultHtml = hh;
+        if (passed === res.length) {
+          m.solved = true;
+          pyDone(id, !m.fails && !m.shown && (s.hints[id] || 0) < t.hints.length);
+        } else m.fails = (m.fails || 0) + 1;
+      }
+    } catch (e) {
+      m.resultHtml = runFailedHtml(e);
+    }
+    save();
+    rerenderInPlace();
+  }
+
+  function askPy(id) {
+    var t = pyTask(id);
+    var code = t.type === "write" ? (pyState().code[id] || {}).text || t.starter : (pyMem[id] || {}).input || "";
+    var err = app.querySelector(".py-result .run-error strong");
+    openClaude("Я учу Python. Задача: " + (t.task || "") + "\n\nМой код:\n" + code + "\n\nОшибка:\n" + (err ? err.textContent : "") +
+      "\n\nОбъясни по-русски, что значит ошибка и в какую сторону думать. Не пиши готовое решение целиком.");
+  }
+
+  function viewPyErrors() {
+    var E = PT().errors;
+    var h = '<a class="back" href="#python">← Тренажёр</a>';
+    h += '<header class="phead"><p class="eyebrow">Справочник</p><h1>Разбор ошибок Python</h1>';
+    h += '<p class="lead">Ошибка — не провал, а подсказка: Python говорит, что и где пошло не так. Все сообщения ниже получены запуском этого кода в Python 3.13.</p></header>';
+    h += '<section class="panel"><h2>Как читать сообщение об ошибке</h2>';
+    h += '<p>Программа в файле <code>poem.py</code>:</p>' + codeBlock(E.traceback.code);
+    h += '<p>Python напечатал:</p><pre class="py-code py-err"><code>' + esc(E.traceback.text) + '</code></pre>';
+    h += '<p><strong>Читай снизу вверх.</strong> Последняя строка — тип ошибки и объяснение. Над ней — строка кода, где ошибка случилась, и номер этой строки. ' +
+      'Ещё выше — откуда эту функцию вызвали. Здесь функция поделила на длину пустого списка, то есть на ноль, а вызвали её в строке 5.</p></section>';
+    E.items.forEach(function (e) {
+      h += '<section class="panel" id="err-' + e.name + '"><h2>' + esc(e.name) + '</h2><p>' + fmt(e.meaning) + '</p>';
+      h += codeBlock(e.code) + '<pre class="py-code py-err"><code>' + esc(e.message) + '</code></pre>';
+      h += '<p><strong>Что делать.</strong> ' + fmt(e.how) + '</p>';
+      if (e.fixed) h += '<p class="code-label">Исправлено</p>' + codeBlock(e.fixed) + (e.fixedOut ? '<p class="code-label">Выводит</p>' + codeBlock(e.fixedOut) : '');
+      h += '</section>';
+    });
+    app.innerHTML = h;
+  }
+
   function viewLesson(p, t) {
     var idx = p.theory.indexOf(t);
     var backHref = '#' + p.id + (isIntro(p) ? '' : '/theory');
@@ -2266,6 +2672,7 @@
     if (a[0] === "glossary") { viewGlossary(); return; }
     if (a[0] === "diagnostic") { viewDiagnostic(); return; }
     if (a[0] === "notes") { viewNotes(); return; }
+    if (a[0] === "python") { viewPython(a[1], a[2]); return; }
     if (a[0] === "interview") { viewInterview(a[1]); return; }
     if (!p) { viewHome(); return; }
     if (a[1] === "theory" && a[2] && hasLessons(p)) {
@@ -2354,7 +2761,11 @@
     if (act === "ask-claude") { askClaude(el); return; }
     if (act === "ask-error") { askAboutError(el.closest(".runbox")); return; }
     if (act === "bug-pick") { pickBug(el.dataset.key, Number(el.dataset.line)); return; }
-    if (act === "bug-show") { (drillMem[el.dataset.key] = drillMem[el.dataset.key] || {}).shown = true; rerenderInPlace(); return; }
+    if (act === "bug-show") {
+      (drillMem[el.dataset.key] = drillMem[el.dataset.key] || {}).shown = true;
+      if (isPyKey(el.dataset.key)) pyDone(pyIdOf(el.dataset.key), false);
+      rerenderInPlace(); return;
+    }
     if (act === "order-add" || act === "order-remove") { moveOrder(el.dataset.key, Number(el.dataset.i), act === "order-add"); return; }
     if (act === "order-check") { checkOrder(el.dataset.key); return; }
     if (act === "order-reset") { drillMem[el.dataset.key] = {}; rerenderInPlace(); return; }
@@ -2364,6 +2775,14 @@
     if (act === "repo-check") { checkRepo(project(el.dataset.pid)); return; }
     if (act === "notes-download") { downloadNotes(); return; }
     if (act === "goto-sec") { gotoSection(el.dataset.i); return; }
+    if (act === "py-predict") { checkPredict(el.dataset.id); return; }
+    if (act === "py-show") { showPyAnswer(el.dataset.id); return; }
+    if (act === "py-fill") { checkFill(el.dataset.id); return; }
+    if (act === "py-write") { checkWrite(el.dataset.id); return; }
+    if (act === "py-hint") { var hs = pyState().hints; hs[el.dataset.id] = (hs[el.dataset.id] || 0) + 1; save(); rerenderInPlace(); return; }
+    if (act === "py-reset-code") { delete pyState().code[el.dataset.id]; save(); rerenderInPlace(); return; }
+    if (act === "py-ask") { askPy(el.dataset.id); return; }
+    if (act === "py-daily-next") { pyState().daily.idx++; save(); render(); window.scrollTo(0, 0); return; }
     if (act === "say") { say(el.dataset.text); return; }
     if (act === "iv-voice") { toggleVoice(el.dataset.id, el); return; }
     if (act === "iv-reveal") { ivEntry(el.dataset.id).revealed = true; save(); rerenderInPlace(); return; }
