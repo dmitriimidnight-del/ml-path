@@ -9,7 +9,7 @@
   // ---------- состояние ----------
 
   function emptyState() {
-    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {}, diag: {}, log: {}, active: {}, termsAdded: {} };
+    return { tasks: {}, criteria: {}, quiz: {}, repo: {}, review: {}, settings: {}, diag: {}, log: {}, active: {}, termsAdded: {}, drills: {}, exams: {}, repoCheck: {} };
   }
 
   function load() {
@@ -207,7 +207,8 @@
       h += '<span class="step-body">';
       h += '<span class="step-title">' + esc(p.title) + '</span>';
       h += '<span class="step-tag">' + esc(p.tagline) + '</span>';
-      h += '<span class="step-meta">' + esc(p.weeks) + (tracked ? ' · ' + pr.pct + '%' : '') + '</span>';
+      h += '<span class="step-meta">' + esc(p.weeks) + (tracked ? ' · ' + pr.pct + '%' : '') +
+        (state.exams[p.id] && state.exams[p.id].passed ? ' · контрольная ✓' : '') + '</span>';
       if (tracked) h += bar(pr.pct, 'Прогресс: ' + p.title);
       h += '</span></a></li>';
     });
@@ -232,7 +233,7 @@
 
   // ---------- проект ----------
 
-  var TABS = [["brief", "Бриф"], ["theory", "Уроки"], ["plan", "План"], ["ready", "Готовность"]];
+  var TABS = [["brief", "Бриф"], ["theory", "Уроки"], ["plan", "План"], ["exam", "Контрольная"], ["ready", "Готовность"]];
 
   function viewProject(p, tab) {
     var pr = progress(p);
@@ -258,6 +259,7 @@
     else if (!hasPlan(p) || tab === "brief") h += briefHtml(p);
     else if (tab === "theory") h += lessonListHtml(p);
     else if (tab === "plan") h += planHtml(p);
+    else if (tab === "exam") h += examHtml(p);
     else if (tab === "ready") h += readyHtml(p);
 
     app.innerHTML = h;
@@ -409,7 +411,8 @@
     if (r.error) {
       h += '<div class="run-error"><p><strong>' + esc(r.error.text) + '</strong></p>';
       if (r.error.hint) h += '<p>' + esc(r.error.hint) + '</p>';
-      h += '<button type="button" class="ghost small" data-act="reset-space">Начать заново</button></div>';
+      h += '<div class="row"><button type="button" class="ghost small" data-act="reset-space">Начать заново</button>' +
+        '<button type="button" class="ghost small" data-act="ask-error">Спросить Claude</button></div></div>';
     }
     if (!h) h = '<p class="run-status">Готово. Программа ничего не напечатала.</p>';
     return h;
@@ -1078,6 +1081,350 @@
     app.innerHTML = h;
   }
 
+  // ---------- спросить Claude ----------
+
+  function openClaude(prompt) {
+    var text = prompt.length > 3500 ? prompt.slice(0, 3500) + "…" : prompt;
+    try {
+      if (navigator.clipboard) navigator.clipboard.writeText(text).catch(function () { /* копирование не разрешено — не страшно */ });
+    } catch (e) { /* не страшно */ }
+    window.open("https://claude.ai/new?q=" + encodeURIComponent(text), "_blank", "noopener");
+  }
+
+  function currentLessonTitle() {
+    var a = parts();
+    var p = project(a[0]);
+    var t = p && p.theory ? p.theory.filter(function (x) { return x.id === a[2]; })[0] : null;
+    return { p: p, t: t };
+  }
+
+  function askHtml() {
+    return '<section class="panel ask"><h2>Не понял? Спроси Claude</h2>' +
+      '<textarea class="ask-input" rows="3"' + EDIT_ATTRS + ' placeholder="Что именно непонятно? Например: почему в формуле стоит плюс один?" aria-label="Твой вопрос"></textarea>' +
+      '<button type="button" class="run-btn" data-act="ask-claude">Открыть Claude с вопросом</button>' +
+      '<p class="hint">Тема урока подставится сама. Claude откроется с готовым текстом, проверь его и отправь. Текст также скопирован, его можно вставить вручную.</p></section>';
+  }
+
+  function askClaude(btn) {
+    var c = currentLessonTitle();
+    var q = btn.closest(".ask").querySelector(".ask-input").value.trim();
+    var prompt = "Я учусь на ML-инженера по учебному приложению. Сейчас урок «" + c.t.title + "» (" +
+      (isIntro(c.p) ? "вводный урок" : "проект «" + c.p.title + "»") + "). Объясни простыми словами, по-русски, " +
+      "с маленьким примером на Python, если он нужен.\n\n" +
+      (q ? "Мой вопрос: " + q : "Объясни главную идею этого урока ещё раз, другими словами, и дай одну небольшую задачу для проверки.");
+    openClaude(prompt);
+  }
+
+  function askAboutError(box) {
+    var r = parseId(box.dataset.id);
+    var err = box.querySelector(".run-error strong");
+    var code = currentCode(box);
+    if (code.length > 1500) code = code.slice(0, 1500) + "\n…";
+    openClaude("Я учусь Python по учебному приложению, урок «" + r.t.title + "». Запустил код и получил ошибку. " +
+      "Объясни по-русски простыми словами, что она значит и как исправить.\n\nКод:\n" + code +
+      "\n\nОшибка:\n" + (err ? err.textContent : ""));
+  }
+
+  // ---------- найди ошибку и собери код ----------
+
+  var drillMem = {};
+
+  function seededOrder(n, seedText) {
+    var seed = 0;
+    for (var i = 0; i < seedText.length; i++) seed = (seed * 31 + seedText.charCodeAt(i)) >>> 0;
+    var a = [];
+    for (var j = 0; j < n; j++) a.push(j);
+    for (var k = n - 1; k > 0; k--) {
+      seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+      var r = seed % (k + 1);
+      var tmp = a[k]; a[k] = a[r]; a[r] = tmp;
+    }
+    if (a.every(function (v, idx) { return v === idx; }) && n > 1) a.reverse();   // не показывать готовый порядок
+    return a;
+  }
+
+  function drillsHtml(p, t) {
+    var ex = window.EXERCISES && window.EXERCISES[p.id + "." + t.id];
+    if (!ex) return '';
+    var h = '<section class="panel drills"><h2>Тренировка</h2>';
+    if (ex.bug) h += bugHtml(p.id + "." + t.id + "|bug", ex.bug);
+    if (ex.order) h += orderHtml(p.id + "." + t.id + "|order", ex.order);
+    return h + '</section>';
+  }
+
+  function solvedMark(key) { return state.drills[key] ? ' <span class="solved">✓ решено</span>' : ''; }
+
+  function bugHtml(key, b) {
+    var m = drillMem[key] || {};
+    var done = m.picked === b.bugLine || m.shown;
+    var h = '<div class="drill"><p><strong>Найди ошибку.</strong>' + solvedMark(key) + ' ' + esc(b.task) + '</p>';
+    h += '<p class="hint">Код печатает <code>' + esc(b.actual) + '</code>, а должен <code>' + esc(b.expected) + '</code>. Нажми на строку с ошибкой.</p>';
+    h += '<div class="code-lines">';
+    b.lines.forEach(function (line, i) {
+      if (!line.trim()) { h += '<div class="cl-gap"></div>'; return; }
+      var cls = "cl";
+      if (done && i === b.bugLine) cls += " right";
+      else if (m.wrong && m.wrong.indexOf(i) !== -1) cls += " wrong";
+      h += '<button type="button" class="' + cls + '" data-act="bug-pick" data-key="' + key + '" data-line="' + i + '"' +
+        (done ? ' disabled' : '') + '>' + esc(line) + '</button>';
+    });
+    h += '</div>';
+    if (done) {
+      h += '<p class="why"><strong>' + (m.picked === b.bugLine ? 'Верно.' : 'Ответ.') + '</strong> ' + esc(b.why) + '</p>';
+      h += '<p class="code-label">Исправленная строка</p><pre><code>' + esc(b.fixedLine) + '</code></pre>';
+    } else if (m.wrong && m.wrong.length) {
+      h += '<p class="run-diff">Не эта строка. Попробуй ещё.</p>';
+      h += '<button type="button" class="ghost small" data-act="bug-show" data-key="' + key + '">Показать ответ</button>';
+    }
+    return h + '</div>';
+  }
+
+  function pickBug(key, line) {
+    var ex = window.EXERCISES[key.split("|")[0]].bug;
+    var m = drillMem[key] = drillMem[key] || {};
+    if (line === ex.bugLine) {
+      m.picked = line;
+      state.drills[key] = true;
+      markActive();
+      save();
+    } else {
+      m.wrong = (m.wrong || []).concat([line]);
+    }
+    rerenderInPlace();
+  }
+
+  function orderHtml(key, o) {
+    var m = drillMem[key] || {};
+    var placed = m.placed || [];
+    var pool = seededOrder(o.lines.length, key).filter(function (i) { return placed.indexOf(i) === -1; });
+    var h = '<div class="drill"><p><strong>Собери код.</strong>' + solvedMark(key) + ' ' + esc(o.task) + '</p>';
+    h += '<p class="hint">Программа должна напечатать <code>' + esc(o.expected) + '</code>. Нажимай на строки по порядку, нажатие на строку в программе возвращает её обратно.</p>';
+    h += '<p class="code-label">Твоя программа</p><div class="code-lines order-answer' + (m.result ? ' ' + m.result : '') + '">';
+    if (!placed.length) h += '<p class="hint order-empty">Пока пусто</p>';
+    placed.forEach(function (i) {
+      h += '<button type="button" class="cl" data-act="order-remove" data-key="' + key + '" data-i="' + i + '"' +
+        (m.result === 'right' ? ' disabled' : '') + '>' + esc(o.lines[i]) + '</button>';
+    });
+    h += '</div>';
+    if (pool.length) {
+      h += '<p class="code-label">Строки</p><div class="code-lines">';
+      pool.forEach(function (i) {
+        h += '<button type="button" class="cl" data-act="order-add" data-key="' + key + '" data-i="' + i + '">' + esc(o.lines[i]) + '</button>';
+      });
+      h += '</div>';
+    }
+    if (m.result === 'right') h += '<p class="run-ok">Верно: программа напечатает ' + esc(o.expected) + '.</p>';
+    if (m.result === 'wrong') h += '<p class="run-diff">Пока не так. Подумай, что должно быть создано раньше, чем используется, и что входит внутрь цикла или функции.</p>';
+    h += '<div class="row">';
+    if (!pool.length && m.result !== 'right') h += '<button type="button" class="run-btn" data-act="order-check" data-key="' + key + '">Проверить</button>';
+    if (placed.length) h += '<button type="button" class="ghost small" data-act="order-reset" data-key="' + key + '">Начать заново</button>';
+    return h + '</div></div>';
+  }
+
+  function moveOrder(key, i, add) {
+    var m = drillMem[key] = drillMem[key] || {};
+    m.placed = m.placed || [];
+    if (add) m.placed.push(i); else m.placed = m.placed.filter(function (x) { return x !== i; });
+    m.result = null;
+    rerenderInPlace();
+  }
+
+  function checkOrder(key) {
+    var o = window.EXERCISES[key.split("|")[0]].order;
+    var m = drillMem[key];
+    var ok = o.valid.some(function (v) { return v.join(",") === m.placed.join(","); });
+    m.result = ok ? 'right' : 'wrong';
+    if (ok) { state.drills[key] = true; markActive(); save(); }
+    rerenderInPlace();
+  }
+
+  // ---------- контрольная по проекту ----------
+
+  var EXAM_SIZE = 15, EXAM_PASS = 0.8;
+  var examShown = null;   // { n, picked }
+
+  function projectQuestionKeys(p) {
+    var keys = [];
+    p.theory.forEach(function (t) { t.quiz.forEach(function (_, qi) { keys.push(p.id + "." + t.id + ".q" + qi); }); });
+    return keys;
+  }
+
+  function startExam(pid) {
+    var p = project(pid);
+    var prev = state.exams[pid] || {};
+    var attempt = (prev.attempt || 0) + 1;
+    var keys = projectQuestionKeys(p);
+    var pick = seededOrder(keys.length, pid + "#" + attempt).slice(0, Math.min(EXAM_SIZE, keys.length));
+    state.exams[pid] = { attempt: attempt, keys: pick.map(function (i) { return keys[i]; }), answers: {},
+      passed: prev.passed, best: prev.best };
+    examShown = null;
+    save();
+    rerenderInPlace();
+  }
+
+  function answerExam(pid, n, picked) {
+    var ex = state.exams[pid];
+    ex.answers[n] = picked;
+    var qi = questionByKey(ex.keys[n]);
+    if (picked !== qi.q.answer) scheduleReview(ex.keys[n], 0);
+    markActive();
+    save();
+    examShown = { n: n, picked: picked };
+    rerenderInPlace();
+  }
+
+  function examNext(pid) {
+    var ex = state.exams[pid];
+    examShown = null;
+    if (Object.keys(ex.answers).length >= ex.keys.length && !ex.done) {
+      var right = ex.keys.filter(function (k, n) { return ex.answers[n] === questionByKey(k).q.answer; }).length;
+      ex.done = true;
+      ex.score = right;
+      ex.date = dayString(0);
+      ex.best = Math.max(ex.best || 0, right / ex.keys.length);
+      if (right / ex.keys.length >= EXAM_PASS) ex.passed = true;
+      save();
+    }
+    render();
+    window.scrollTo(0, 0);
+  }
+
+  function examHtml(p) {
+    var ex = state.exams[p.id];
+    var total = Math.min(EXAM_SIZE, projectQuestionKeys(p).length);
+    var h = '<section class="panel">';
+    if (!ex || !ex.keys) {
+      h += '<h2>Контрольная по проекту</h2><p>' + total + ' вопросов из всех уроков проекта вперемешку. ' +
+        'Сдана, если верно хотя бы ' + Math.round(EXAM_PASS * 100) + ' %. Вопросы с ошибками попадут в повторение.</p>' +
+        '<p class="hint">Лучше проходить, когда прочитаны все уроки. Пересдавать можно сколько угодно: каждый раз будет другой набор.</p>' +
+        '<button type="button" class="run-btn" data-act="exam-start" data-pid="' + p.id + '">Начать</button>';
+      return h + '</section>';
+    }
+    if (!ex.done) {
+      var n = examShown ? examShown.n : ex.keys.findIndex(function (_, i) { return ex.answers[i] === undefined; });
+      var qi = questionByKey(ex.keys[n]);
+      h += '<p class="hint">Вопрос ' + (n + 1) + ' из ' + ex.keys.length + ' · ' + esc(qi.t.title) + '</p>';
+      h += bar(Math.round(n / ex.keys.length * 100), 'Прогресс контрольной');
+      h += '<fieldset class="q"><legend>' + fmt(qi.q.q) + '</legend>';
+      order(qi.q.options.length, qi.qi * 31 + qi.q.q.length + qi.q.options[0].length).forEach(function (oi) {
+        var cls = "opt", answered = !!examShown;
+        if (answered && oi === qi.q.answer) cls += " right";
+        else if (answered && oi === examShown.picked) cls += " wrong";
+        h += '<button type="button" class="' + cls + '" data-act="exam-answer" data-pid="' + p.id + '" data-n="' + n + '" data-i="' + oi + '"' +
+          (answered ? ' disabled' : '') + '>' + esc(qi.q.options[oi]) + '</button>';
+      });
+      if (examShown) {
+        h += '<p class="why"><strong>' + (examShown.picked === qi.q.answer ? 'Верно.' : 'Неверно.') + '</strong> ' + fmt(qi.q.why) + '</p>';
+        var last = Object.keys(ex.answers).length >= ex.keys.length;
+        h += '<button type="button" class="run-btn" data-act="exam-next" data-pid="' + p.id + '">' + (last ? 'Результат' : 'Дальше') + '</button>';
+      }
+      h += '</fieldset>';
+      return h + '</section>';
+    }
+    var passedNow = ex.score / ex.keys.length >= EXAM_PASS;
+    h += '<h2>' + ex.score + ' из ' + ex.keys.length + '</h2>';
+    h += '<p class="' + (passedNow ? 'run-ok' : 'run-diff') + '">' + (passedNow ? 'Контрольная сдана.' :
+      'Пока не сдана: нужно ' + Math.ceil(ex.keys.length * EXAM_PASS) + ' верных ответов.') + '</p>';
+    var weakLessons = [];
+    ex.keys.forEach(function (k, i) {
+      var qi = questionByKey(k);
+      if (ex.answers[i] !== qi.q.answer && weakLessons.indexOf(qi.t) === -1) weakLessons.push(qi.t);
+    });
+    if (weakLessons.length) {
+      h += '<p>Стоит перечитать:</p><ul class="plain">' + weakLessons.map(function (t) {
+        return '<li><a class="link" href="#' + p.id + '/theory/' + t.id + '">' + esc(t.title) + '</a></li>';
+      }).join('') + '</ul><p class="hint">Вопросы с ошибками добавлены в повторение.</p>';
+    }
+    if (ex.passed && !passedNow) h += '<p class="hint">Раньше контрольная уже была сдана, эта отметка сохраняется.</p>';
+    h += '<button type="button" class="ghost small" data-act="exam-start" data-pid="' + p.id + '">Пройти ещё раз</button>';
+    return h + '</section>';
+  }
+
+  // ---------- проверка репозитория на GitHub ----------
+
+  var REPO_EXTRA = {
+    p1: [["notebook", "Есть ноутбук .ipynb или папка notebooks"]],
+    p2: [["train.py", "Есть train.py"]],
+    p3: [["dockerfile", "Есть Dockerfile"], [".github", "Есть папка .github с проверками CI"], ["tests", "Есть папка tests"]],
+    p5: [["tests", "Есть папка tests"]],
+    p6: [["decisions.md", "Есть DECISIONS.md"]]
+  };
+
+  function repoReportHtml(rep) {
+    if (!rep) return '';
+    if (rep.error) return '<p class="run-diff">' + esc(rep.error) + '</p>';
+    var ok = rep.items.filter(function (i) { return i.ok; }).length;
+    var h = '<p class="code-label">Проверено ' + esc(rep.date) + ': ' + ok + ' из ' + rep.items.length + '</p><ul class="repo-items">';
+    rep.items.forEach(function (i) {
+      h += '<li class="' + (i.ok ? 'ok' : 'no') + '"><span>' + (i.ok ? '✓' : '✕') + '</span> ' + esc(i.text) +
+        (i.note ? ' <span class="hint">' + esc(i.note) + '</span>' : '') + '</li>';
+    });
+    return h + '</ul><p class="hint">Это автоматическая проверка формы. Качество кода и выводов она не оценивает.</p>';
+  }
+
+  function cyrillicShare(text) {
+    var letters = (text.match(/[A-Za-zА-Яа-яЁё]/g) || []).length;
+    return letters ? (text.match(/[А-Яа-яЁё]/g) || []).length / letters : 0;
+  }
+
+  async function checkRepo(p) {
+    var report = document.getElementById("repo-report");
+    var m = /github\.com\/([^\/\s?#]+)\/([^\/\s?#]+)/i.exec(state.repo[p.id] || "");
+    function finish(rep) { state.repoCheck[p.id] = rep; save(); if (report) report.innerHTML = repoReportHtml(rep); }
+    if (!m) { finish({ error: "Ссылка должна быть вида https://github.com/логин/репозиторий." }); return; }
+    if (!navigator.onLine) { finish({ error: "Для проверки нужен интернет." }); return; }
+    if (report) report.innerHTML = '<p class="run-status">Проверяю…</p>';
+    var base = "https://api.github.com/repos/" + m[1] + "/" + m[2].replace(/\.git$/, "");
+    async function get(path) {
+      var r = await fetch(base + path, { headers: { Accept: "application/vnd.github+json" } });
+      if (r.status === 404) return null;
+      if (r.status === 403 || r.status === 429) throw new Error("limit");
+      if (!r.ok) throw new Error("http " + r.status);
+      return r.json();
+    }
+    try {
+      var info = await get("");
+      if (!info) { finish({ error: "Репозиторий не найден. Проверь ссылку и что репозиторий публичный." }); return; }
+      var contents = (await get("/contents")) || [];
+      var commits = (await get("/commits?per_page=100")) || [];
+      var readme = await get("/readme");
+      var names = contents.map(function (c) { return c.name.toLowerCase(); });
+      var has = function (n) { return names.indexOf(n) !== -1; };
+      var text = "";
+      if (readme && readme.content) {
+        var bin = atob(readme.content.replace(/\n/g, ""));
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        text = new TextDecoder("utf-8").decode(bytes);
+      }
+      var msgs = commits.map(function (c) { return c.commit.message.split("\n")[0]; });
+      var english = msgs.filter(function (msg) { return cyrillicShare(msg) === 0; }).length;
+      var items = [
+        { ok: !info.private, text: "Репозиторий публичный" },
+        { ok: !!info.description, text: "Заполнено описание репозитория", note: info.description ? "" : "кнопка ⚙ справа от About" },
+        { ok: text.length >= 1000, text: "README подробный", note: text ? text.length + " символов" : "README нет" },
+        { ok: !!text && cyrillicShare(text) < 0.05, text: "README на английском" },
+        { ok: /!\[[^\]]*\]\(|<img\s/i.test(text), text: "В README есть картинка, график или значок" },
+        { ok: has("requirements.txt") || has("pyproject.toml"), text: "Есть requirements.txt" },
+        { ok: has(".gitignore"), text: "Есть .gitignore" },
+        { ok: commits.length >= 5, text: "Не меньше 5 коммитов", note: commits.length >= 100 ? "100+" : String(commits.length) },
+        { ok: msgs.length > 0 && english / msgs.length >= 0.8, text: "Сообщения коммитов на английском",
+          note: msgs.length ? english + " из " + msgs.length : "" }
+      ];
+      (REPO_EXTRA[p.id] || []).forEach(function (e) {
+        var ok = e[0] === "notebook"
+          ? names.some(function (n) { return /\.ipynb$/.test(n); }) || has("notebooks")
+          : has(e[0]);
+        items.push({ ok: ok, text: e[1] });
+      });
+      finish({ date: dayString(0), items: items });
+    } catch (e) {
+      finish({ error: e.message === "limit"
+        ? "GitHub ограничивает число проверок без входа: около 60 запросов в час. Попробуй позже."
+        : "Не получилось связаться с GitHub. Попробуй ещё раз." });
+    }
+  }
+
   function viewLesson(p, t) {
     var idx = p.theory.indexOf(t);
     var backHref = '#' + p.id + (isIntro(p) ? '' : '/theory');
@@ -1141,7 +1488,9 @@
       h += '</section>';
     }
 
+    h += drillsHtml(p, t);
     h += quizHtml(p, t);
+    h += askHtml();
 
     if (t.sources && t.sources.length) {
       h += '<section class="panel"><h2>Источники</h2><ul class="plain">';
@@ -1228,6 +1577,8 @@
       '" data-pid="' + p.id + '" aria-label="Ссылка на репозиторий">';
     if (state.repo[p.id]) {
       h += '<p><a class="link" href="' + esc(state.repo[p.id]) + '" target="_blank" rel="noopener">Открыть репозиторий</a></p>';
+      h += '<button type="button" class="run-btn" data-act="repo-check" data-pid="' + p.id + '">Проверить репозиторий</button>';
+      h += '<div id="repo-report" aria-live="polite">' + repoReportHtml(state.repoCheck[p.id]) + '</div>';
     }
     h += '</section>';
     return h;
@@ -1317,6 +1668,17 @@
     }
 
     if (act === "offline-download") { downloadOffline(); return; }
+    if (act === "ask-claude") { askClaude(el); return; }
+    if (act === "ask-error") { askAboutError(el.closest(".runbox")); return; }
+    if (act === "bug-pick") { pickBug(el.dataset.key, Number(el.dataset.line)); return; }
+    if (act === "bug-show") { (drillMem[el.dataset.key] = drillMem[el.dataset.key] || {}).shown = true; rerenderInPlace(); return; }
+    if (act === "order-add" || act === "order-remove") { moveOrder(el.dataset.key, Number(el.dataset.i), act === "order-add"); return; }
+    if (act === "order-check") { checkOrder(el.dataset.key); return; }
+    if (act === "order-reset") { drillMem[el.dataset.key] = {}; rerenderInPlace(); return; }
+    if (act === "exam-start") { startExam(el.dataset.pid); return; }
+    if (act === "exam-answer") { answerExam(el.dataset.pid, Number(el.dataset.n), Number(el.dataset.i)); return; }
+    if (act === "exam-next") { examNext(el.dataset.pid); return; }
+    if (act === "repo-check") { checkRepo(project(el.dataset.pid)); return; }
     if (act === "log-time") { logTime(Number(el.dataset.min)); return; }
     if (act === "add-terms") { addTerms(project(el.dataset.p), el.dataset.t, 0); save(); rerenderInPlace(); return; }
     if (act === "term-reveal") { reviewShown = { key: el.dataset.key, revealed: true }; render(); return; }
