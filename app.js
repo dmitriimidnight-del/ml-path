@@ -555,7 +555,7 @@
 
     h += quizHtml(p, t);
 
-    if (t.sources) {
+    if (t.sources && t.sources.length) {
       h += '<section class="panel"><h2>Источники</h2><ul class="plain">';
       t.sources.forEach(function (s) {
         h += '<li><a class="link" href="' + esc(s.u) + '" target="_blank" rel="noopener">' + esc(s.t) + '</a></li>';

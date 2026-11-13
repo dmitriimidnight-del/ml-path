@@ -13,7 +13,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FILES = ["data.js", "lessons-p1-extra.js", "lessons-p2.js", "lessons-p3.js", "lessons-p4.js"]
+FILES = ["data.js", "lessons-p1-extra.js", "lessons-p2.js", "lessons-p3.js", "lessons-p4.js", "lessons-p5.js", "lessons-p6.js"]
 SHELL_WORDS = ("git ", "python ", "pip ", "cd ", ".venv", "source ", "docker ", "pytest", "fastapi ", "ruff ")
 
 node_src = "global.window = {};" + "".join(
